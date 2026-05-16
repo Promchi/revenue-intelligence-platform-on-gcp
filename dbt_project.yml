@@ -1,0 +1,44 @@
+name: 'revenue_intelligence_platform'
+version: '1.0.0'
+config-version: 2
+
+profile: 'revenue_intelligence_platform'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  revenue_intelligence_platform:
+
+    staging:
+      +materialized: view
+      +schema: staging
+      crm:
+        +tags: ["crm", "staging"]
+      erp:
+        +tags: ["erp", "staging"]
+      web:
+        +tags: ["web", "staging"]
+
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+      +tags: ["intermediate"]
+
+    marts:
+      +materialized: table
+      +schema: marts
+      core:
+        +tags: ["core", "marts"]
+      marketing:
+        +tags: ["marketing", "marts"]
+      finance:
+        +tags: ["finance", "marts"]

@@ -1,0 +1,31 @@
+version: 2
+
+sources:
+  - name: crm
+    database: project-6781bf86-eb56-440c-84b
+    schema: raw
+    tables:
+      - name: accounts
+      - name: contacts
+      - name: leads
+      - name: opportunities
+      - name: campaigns
+      - name: activities
+      - name: support_tickets
+
+  - name: erp
+    database: project-6781bf86-eb56-440c-84b
+    schema: raw
+    tables:
+      - name: products
+      - name: orders
+      - name: invoices
+      - name: subscriptions
+      - name: payments
+
+  - name: web
+    database: project-6781bf86-eb56-440c-84b
+    schema: raw
+    tables:
+      - name: web_events
+      - name: feature_usage

@@ -1,0 +1,176 @@
+version: 2
+
+models:
+
+  - name: mart_customer_churn
+    description: >
+      Final customer churn mart. One row per account combining subscription 
+      health, payment health, support ticket signals, and feature usage into 
+      a churn risk score and band. Primary table for the churn dashboard in 
+      Looker Studio. MRR and ARR at risk quantify revenue exposure by risk band.
+    columns:
+      - name: account_id
+        description: "Primary key. Unique identifier per account."
+        data_tests:
+          - unique
+          - not_null
+      - name: account_name
+        data_tests:
+          - not_null
+      - name: churn_risk_score
+        description: "0-100 score. Higher = more at risk. Combines payment, support, and usage signals."
+        data_tests:
+          - not_null
+      - name: churn_risk_band
+        description: "Risk classification based on churn_risk_score."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['critical', 'high', 'medium', 'low']
+      - name: payment_health_band
+        description: "Payment health classification from int_payment_health."
+        data_tests:
+          - accepted_values:
+              values: ['critical', 'poor', 'at_risk', 'healthy']
+      - name: revenue_health_band
+        description: "Overall revenue health classification."
+      - name: total_mrr
+        description: "Total monthly recurring revenue for the account."
+      - name: total_arr
+        description: "Total annual recurring revenue for the account."
+      - name: mrr_at_risk
+        description: "MRR exposed to churn risk based on risk band weighting."
+      - name: arr_at_risk
+        description: "ARR exposed to churn risk based on risk band weighting."
+      - name: collection_rate_pct
+        description: "Percentage of billed revenue successfully collected."
+      - name: payment_failure_rate_pct
+        description: "Percentage of payment attempts that failed."
+      - name: recommended_action
+        description: "Suggested next action based on churn risk band."
+        data_tests:
+          - not_null
+      - name: tier
+        data_tests:
+          - accepted_values:
+              values: ['starter', 'growth', 'enterprise']
+      - name: mart_updated_at
+        description: "Timestamp of when this mart was last refreshed."
+        data_tests:
+          - not_null
+
+  - name: mart_revenue
+    description: >
+      Final revenue mart. One row per account with complete billing health, 
+      subscription metrics, payment health, revenue classification, and 
+      customer lifetime value estimate. Primary table for the revenue 
+      dashboard in Looker Studio.
+    columns:
+      - name: account_id
+        description: "Primary key. Unique identifier per account."
+        data_tests:
+          - unique
+          - not_null
+      - name: revenue_health_band
+        description: "Overall revenue health classification per account."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['healthy', 'stable', 'at_risk', 'critical', 'no_revenue']
+      - name: payment_health_band
+        description: "Payment health classification from int_payment_health."
+        data_tests:
+          - accepted_values:
+              values: ['critical', 'poor', 'at_risk', 'healthy']
+      - name: total_mrr
+        description: "Total monthly recurring revenue for the account."
+      - name: total_arr
+        description: "Total annual recurring revenue for the account."
+      - name: arr_at_risk
+        description: "Annualised revenue at risk based on collection rate."
+      - name: net_revenue
+        description: "Total collected minus total outstanding revenue."
+      - name: collection_rate_pct
+        description: "Percentage of billed revenue successfully collected."
+      - name: outstanding_pct
+        description: "Outstanding revenue as a percentage of total billed."
+      - name: estimated_clv
+        description: "Estimated customer lifetime value: MRR x avg subscription duration in months."
+      - name: customer_tenure_days
+        description: "Days since the account's earliest subscription start date."
+      - name: has_expanded
+        description: "True if the account has taken on additional subscriptions over time."
+      - name: has_contracted
+        description: "True if the account has churned subscriptions alongside active ones."
+      - name: tier
+        data_tests:
+          - accepted_values:
+              values: ['starter', 'growth', 'enterprise']
+      - name: mart_updated_at
+        description: "Timestamp of when this mart was last refreshed."
+        data_tests:
+          - not_null
+
+  - name: mart_sales_funnel
+    description: >
+      Final sales funnel mart. One row per lead tracking the full journey 
+      from lead creation through campaign attribution, conversion, pipeline 
+      stage, and closed won or lost. Includes engagement quality, deal 
+      velocity, and campaign ROI signals. Primary table for the marketing 
+      and sales dashboard in Looker Studio.
+    columns:
+      - name: lead_id
+        description: "Primary key. Unique identifier per lead."
+        data_tests:
+          - unique
+          - not_null
+      - name: funnel_stage
+        description: "Current stage of the lead in the funnel."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['1_lead', '2_converted', '3_in_pipeline', '4_closed_won', '4_closed_lost']
+      - name: lead_outcome
+        description: "Final outcome of the lead."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['closed_won', 'closed_lost', 'in_pipeline', 'not_converted']
+      - name: attribution_type
+        description: "Whether the lead came from a campaign or organic source."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['campaign', 'organic']
+      - name: engagement_quality
+        description: "Quality of sales engagement on the linked opportunity."
+        data_tests:
+          - accepted_values:
+              values: ['no_engagement', 'high', 'medium', 'low']
+      - name: lead_source
+        description: "Original source channel that generated the lead."
+      - name: days_to_convert
+        description: "Days from lead creation to conversion. Null if not converted."
+      - name: days_lead_to_close
+        description: "Days from lead creation to closed won. Null if not won."
+      - name: days_convert_to_close
+        description: "Days from conversion to closed won. Null if not won."
+      - name: revenue_per_spend
+        description: "Closed won opportunity amount divided by campaign spend. ROI signal."
+      - name: opportunity_amount
+        description: "Value of the linked opportunity in the account currency."
+      - name: weighted_amount
+        description: "Opportunity amount weighted by close probability."
+      - name: mart_updated_at
+        description: "Timestamp of when this mart was last refreshed."
+        data_tests:
+          - not_null
+    tests:
+      - dbt_utils.expression_is_true:
+          name: deal_velocity_must_be_positive
+          expression: "days_lead_to_close >= 0 or days_lead_to_close is null"
+          severity: error
+      - dbt_utils.expression_is_true:
+          name: convert_to_close_must_be_positive
+          expression: "days_convert_to_close >= 0 or days_convert_to_close is null"
+          severity: error

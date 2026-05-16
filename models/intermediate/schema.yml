@@ -1,0 +1,76 @@
+version: 2
+
+models:
+
+  - name: int_accounts_with_subscriptions
+    description: >
+      Joins accounts with aggregated subscription, invoice, and payment 
+      metrics. One row per account. Financial backbone for churn and 
+      revenue marts.
+    columns:
+      - name: account_id
+        data_tests:
+          - unique
+          - not_null
+      - name: collection_rate_pct
+        description: "Percentage of billed revenue collected. < 50% is high risk."
+      - name: payment_failure_rate_pct
+        description: "Percentage of payment attempts that failed."
+
+  - name: int_customer_health
+    description: >
+      Combines subscription health, support ticket signals, and feature 
+      usage into a single churn risk score per account. One row per account.
+    columns:
+      - name: account_id
+        data_tests:
+          - unique
+          - not_null
+      - name: churn_risk_score
+        description: "0-100 score. Higher = more at risk of churning."
+      - name: churn_risk_band
+        data_tests:
+          - accepted_values:
+              values: ['critical', 'high', 'medium', 'low']
+
+  - name: int_leads_with_campaigns
+    description: >
+      Joins leads with campaign attribution, contact context, and 
+      opportunity outcomes. One row per lead.
+    columns:
+      - name: lead_id
+        data_tests:
+          - unique
+          - not_null
+      - name: lead_outcome
+        data_tests:
+          - accepted_values:
+              values: ['closed_won', 'closed_lost', 'in_pipeline', 'not_converted']
+
+  - name: int_payment_health
+    description: >
+      Builds payment health timeline per account with consecutive failure 
+      detection and payment health scoring. One row per account.
+    columns:
+      - name: account_id
+        data_tests:
+          - unique
+          - not_null
+      - name: payment_health_band
+        data_tests:
+          - accepted_values:
+              values: ['critical', 'poor', 'at_risk', 'healthy']
+
+  - name: int_sales_activity
+    description: >
+      Measures sales engagement intensity per opportunity. Joins activities 
+      to opportunities with engagement quality scoring. One row per opportunity.
+    columns:
+      - name: opportunity_id
+        data_tests:
+          - unique
+          - not_null
+      - name: engagement_quality
+        data_tests:
+          - accepted_values:
+              values: ['no_engagement', 'high', 'medium', 'low']

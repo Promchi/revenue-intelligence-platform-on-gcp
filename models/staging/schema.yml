@@ -1,0 +1,209 @@
+version: 2
+
+models:
+
+  # ── CRM ───────────────────────────────────────────────────────────────────
+
+  - name: stg_crm__accounts
+    description: "Cleaned and standardised accounts from CRM raw layer."
+    columns:
+      - name: account_id
+        description: "Primary key — unique account identifier."
+        data_tests:
+          - unique
+          - not_null
+      - name: account_status
+        data_tests:
+          - accepted_values:
+              values: ['active', 'churned', 'prospect']
+      - name: tier
+        data_tests:
+          - accepted_values:
+              values: ['starter', 'growth', 'enterprise']
+
+  - name: stg_crm__contacts
+    description: "Cleaned contacts. Orphaned contacts flagged via is_orphaned."
+    columns:
+      - name: contact_id
+        data_tests:
+          - unique
+          - not_null
+      - name: account_id
+        data_tests:
+          - relationships:
+              to: ref('stg_crm__accounts')
+              field: account_id
+
+  - name: stg_crm__leads
+    description: "Cleaned leads with conversion dates and days_to_convert derived."
+    columns:
+      - name: lead_id
+        data_tests:
+          - unique
+          - not_null
+      - name: contact_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_crm__contacts')
+              field: contact_id
+      - name: lead_status
+        data_tests:
+          - accepted_values:
+              values: ['new', 'working', 'nurturing', 'disqualified', 'converted']
+
+  - name: stg_crm__opportunities
+    description: "Cleaned opportunities with weighted pipeline value."
+    columns:
+      - name: opportunity_id
+        data_tests:
+          - unique
+          - not_null
+      - name: account_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_crm__accounts')
+              field: account_id
+      - name: stage
+        data_tests:
+          - accepted_values:
+              values: ['prospecting', 'qualification', 'proposal',
+                       'negotiation', 'closed won', 'closed lost']
+
+  - name: stg_crm__campaigns
+    description: "Cleaned campaigns with budget utilisation derived."
+    columns:
+      - name: campaign_id
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_crm__activities
+    description: "Cleaned sales activities with outcome and engagement flags."
+    columns:
+      - name: activity_id
+        data_tests:
+          - unique
+          - not_null
+      - name: account_id
+        data_tests:
+          - not_null
+
+  - name: stg_crm__support_tickets
+    description: "Cleaned support tickets with CSAT and resolution time derived."
+    columns:
+      - name: ticket_id
+        data_tests:
+          - unique
+          - not_null
+      - name: account_id
+        data_tests:
+          - not_null
+      - name: priority
+        data_tests:
+          - accepted_values:
+              values: ['low', 'medium', 'high', 'critical']
+
+  # ── ERP ───────────────────────────────────────────────────────────────────
+
+  - name: stg_erp__products
+    description: "Cleaned product catalogue with price tier derived."
+    columns:
+      - name: product_id
+        data_tests:
+          - unique
+          - not_null
+      - name: billing_type
+        data_tests:
+          - accepted_values:
+              values: ['subscription', 'one-time']
+
+  - name: stg_erp__orders
+    description: "Cleaned orders. Refunds flagged via is_refund."
+    columns:
+      - name: order_id
+        data_tests:
+          - unique
+          - not_null
+      - name: account_id
+        data_tests:
+          - not_null
+
+  - name: stg_erp__invoices
+    description: "Cleaned invoices with outstanding amount and days overdue."
+    columns:
+      - name: invoice_id
+        data_tests:
+          - unique
+          - not_null
+      - name: account_id
+        data_tests:
+          - not_null
+      - name: payment_status
+        data_tests:
+          - accepted_values:
+              values: ['paid', 'unpaid', 'overdue', 'partial']
+
+  - name: stg_erp__subscriptions
+    description: "Cleaned subscriptions. Inverted dates flagged via is_date_inverted."
+    columns:
+      - name: subscription_id
+        data_tests:
+          - unique
+          - not_null
+      - name: account_id
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_crm__accounts')
+              field: account_id
+      - name: subscription_status
+        data_tests:
+          - accepted_values:
+              values: ['active', 'churned', 'paused', 'trial']
+
+  - name: stg_erp__payments
+    description: "Cleaned payments with failure and retry flags."
+    columns:
+      - name: payment_id
+        data_tests:
+          - unique
+          - not_null
+      - name: account_id
+        data_tests:
+          - not_null
+      - name: payment_status
+        data_tests:
+          - accepted_values:
+              values: ['successful', 'failed', 'refunded', 'pending']
+
+  # ── WEB ───────────────────────────────────────────────────────────────────
+
+  - name: stg_web__web_events
+    description: "Cleaned web events. UTM source casing standardised."
+    columns:
+      - name: event_id
+        data_tests:
+          - unique
+          - not_null
+      - name: event_type
+        data_tests:
+          - accepted_values:
+              values: ['page_view', 'form_submit', 'demo_request',
+                       'pricing_view', 'blog_view', 'login', 'feature_use']
+
+  - name: stg_web__feature_usage
+    description: "Cleaned feature usage with engagement level derived."
+    columns:
+      - name: usage_id
+        data_tests:
+          - unique
+          - not_null
+      - name: account_id
+        data_tests:
+          - not_null
+      - name: engagement_level
+        data_tests:
+          - accepted_values:
+              values: ['power', 'regular', 'light', 'inactive']
