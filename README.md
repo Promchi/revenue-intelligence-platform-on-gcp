@@ -198,6 +198,23 @@ Organised into three subfolders matching source domains.
 
 ---
 
+## dbt Documentation and Lineage
+
+The full dbt project documentation is auto-generated from model SQL files and schema.yml descriptions. The lineage graph below shows the complete data flow across the pipeline, from raw source tables through staging and intermediate transformations to the final mart tables that power the dashboards.
+
+![dbt Lineage Graph](images/dbt_lineage_graph.png)
+
+To regenerate the documentation site locally:
+
+```bash
+dbt docs generate
+dbt docs serve
+```
+
+This builds a browsable static site at `http://localhost:8080` with every model documented, including compiled SQL, column descriptions, test results, and an interactive lineage explorer.
+
+---
+
 ## Data Quality and Testing
 
 95 automated dbt tests across all three model layers, all passing.
