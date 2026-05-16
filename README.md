@@ -202,7 +202,7 @@ Organised into three subfolders matching source domains.
 
 The full dbt project documentation is auto-generated from model SQL files and schema.yml descriptions. The lineage graph below shows the complete data flow across the pipeline, from raw source tables through staging and intermediate transformations to the final mart tables that power the dashboards.
 
-![dbt Lineage Graph](images/dbt_lineage_graph.png)
+![dbt Lineage Graph](images/dbt_docs_lineage_graph.png)
 
 To regenerate the documentation site locally:
 
