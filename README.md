@@ -1,4 +1,4 @@
-# Revenue Intelligence Platform
+# Revenue Intelligence Platform on GCP
 
 > An end-to-end analytics pipeline on GCP that ingests CRM, ERP, and web event data to surface customer churn risk, revenue health, and sales funnel performance. Built with Airbyte, BigQuery, dbt Core, and Looker Studio. 14 staging models, 5 intermediate models, 3 mart tables, and 95 automated tests covering both structural and behavioural data validation.
 
@@ -353,4 +353,4 @@ The current pipeline is the analytics engineering foundation. Planned extensions
 
 ---
 
-*Built by Promise | [LinkedIn](https://www.linkedin.com/in/your-profile) | [GitHub](https://github.com/your-username)*
+*Built by Promise | [LinkedIn](https://www.linkedin.com/in/promise-ezeike) | [GitHub](https://github.com/promchi)*
