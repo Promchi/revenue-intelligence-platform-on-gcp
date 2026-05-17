@@ -36,8 +36,6 @@ The platform combines CRM data (HubSpot), ERP data (ERPNext), and web event data
 
 The architecture follows a strict separation of concerns. Each layer has one responsibility. Ingestion moves data faithfully. Staging cleans and standardises. Intermediate computes business logic. Marts serve precomputed, tested, trusted tables to the visualisation layer. By the time data reaches a dashboard, it has passed 95 automated quality checks across structural integrity and behavioural invariants.
 
-This is the type of pipeline used by mid-sized to enterprise B2B SaaS data teams, condensed into a portfolio-friendly format that runs entirely on free-tier GCP services.
-
 ---
 
 ## Objective
