@@ -35,6 +35,9 @@ models:
 
     marts:
       +materialized: table
+      +persist_docs:
+        relation: true
+        columns: true
       +schema: marts
       core:
         +tags: ["core", "marts"]

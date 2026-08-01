@@ -39,6 +39,7 @@ leads_with_campaigns as (
         c.campaign_type,
         c.campaign_status,
         c.channel,
+        c.campaign_variant,
         round(cast(c.budget as numeric), 2)       as budget,
         round(cast(c.actual_spend as numeric), 2) as actual_spend,
         c.budget_utilisation_pct,

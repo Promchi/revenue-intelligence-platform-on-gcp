@@ -15,6 +15,9 @@ models:
           - unique
           - not_null
       - name: account_name
+        description: >
+          Human-readable name of the customer account. Use for display and for
+          looking up a specific named customer by name. Use account_id for joins.
         data_tests:
           - not_null
       - name: churn_risk_score
@@ -51,6 +54,11 @@ models:
         data_tests:
           - not_null
       - name: tier
+        description: >
+          Segment classification for the account. Valid values are: starter,
+          growth, enterprise. These are ordered from smallest to largest, so
+          enterprise is the highest tier and starter the lowest. Use to break
+          down churn, revenue, or funnel analysis by customer segment.
         data_tests:
           - accepted_values:
               values: ['starter', 'growth', 'enterprise']
