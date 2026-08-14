@@ -4,9 +4,9 @@ models:
 
   - name: mart_customer_churn
     description: >
-      Final customer churn mart. One row per account combining subscription 
-      health, payment health, support ticket signals, and feature usage into 
-      a churn risk score and band. Primary table for the churn dashboard in 
+      Final customer churn mart. One row per account combining subscription
+      health, payment health, support ticket signals, and feature usage into
+      a churn risk score and band. Primary table for the churn dashboard in
       Looker Studio. MRR and ARR at risk quantify revenue exposure by risk band.
     columns:
       - name: account_id
@@ -20,6 +20,233 @@ models:
           looking up a specific named customer by name. Use account_id for joins.
         data_tests:
           - not_null
+      - name: industry
+        description: >
+          Industry classification of the account, lowercased and trimmed from
+          the CRM account record (stg_crm__accounts). Free-text value set by
+          the source system, not a constrained enum. One value per account_id
+          (account grain).
+      - name: tier
+        description: >
+          Segment classification for the account. Valid values are: starter,
+          growth, enterprise. These are ordered from smallest to largest, so
+          enterprise is the highest tier and starter the lowest. Use to break
+          down churn, revenue, or funnel analysis by customer segment.
+        data_tests:
+          - accepted_values:
+              values: ['starter', 'growth', 'enterprise']
+      - name: tier_rank
+        description: >
+          Numeric ranking mirroring tier: 3 = enterprise, 2 = growth,
+          1 = starter, 0 = tier value not recognised (null/other). Use for
+          ordering or filtering by tier without string comparison. One value
+          per account_id.
+      - name: account_status
+        description: >
+          Lifecycle status of the account, lowercased and trimmed from the CRM
+          account record. Observed values (enforced by a staging data test):
+          active, churned, prospect. One value per account_id.
+      - name: is_churned
+        description: >
+          TRUE when the account's account_status equals 'churned' (the account
+          has been lost as a customer). FALSE otherwise, including for
+          prospects and currently active accounts. One value per account_id.
+      - name: total_mrr
+        description: "Total monthly recurring revenue for the account."
+      - name: total_arr
+        description: "Total annual recurring revenue for the account."
+      - name: active_subscriptions
+        description: >
+          Count of the account's subscriptions currently in 'active' status
+          (stg_erp__subscriptions.subscription_status = 'active'). Integer
+          count, account grain. 0 if the account has no active subscriptions.
+      - name: total_subscriptions
+        description: >
+          Total count of all subscriptions ever recorded for the account,
+          excluding rows with an inverted date range (end_date before
+          start_date, treated upstream as dirty data). Integer count, account
+          grain.
+      - name: churned_subscriptions
+        description: >
+          Count of the account's subscriptions currently in 'churned' status.
+          Integer count, account grain.
+      - name: earliest_subscription_start
+        description: >
+          Start date of the account's earliest (first) subscription. NULL if
+          the account has no subscriptions. Account grain.
+      - name: latest_subscription_start
+        description: >
+          Start date of the account's most recently started subscription.
+          NULL if the account has no subscriptions. Account grain.
+      - name: avg_subscription_duration_days
+        description: >
+          Average subscription duration in days (end_date minus start_date)
+          across the account's subscriptions, after excluding subscriptions
+          with an invalid inverted date range. Decimal value, account grain.
+          0 if the account has no subscriptions.
+      - name: collection_rate_pct
+        description: "Percentage of billed revenue successfully collected."
+      - name: payment_failure_rate_pct
+        description: "Percentage of payment attempts that failed."
+      - name: overdue_invoices
+        description: >
+          Count of the account's invoices currently in 'overdue' payment
+          status. Integer count, account grain.
+      - name: repeat_failures
+        description: >
+          Count of the account's payment transactions flagged as repeat
+          failures, where a payment's retry_count >= 2
+          (stg_erp__payments.is_repeat_failure). Integer count, account grain.
+          Distinct from consecutive_failure_count (back-to-back failed
+          payments, by date order) and total_cumulative_failures (running
+          total of failed payments).
+      - name: total_billed
+        description: >
+          Total amount invoiced to the account (sum of amount_due across the
+          account's invoices), rounded to 2dp. Monetary value in the account's
+          billing currency, account grain.
+      - name: total_collected
+        description: >
+          Total amount actually paid against invoices (sum of amount_paid,
+          coalesced to 0) across the account's invoices, rounded to 2dp.
+          Monetary value in the account's billing currency, account grain.
+      - name: total_outstanding
+        description: >
+          Total unpaid balance across the account's invoices (sum of
+          amount_due minus amount_paid per invoice), rounded to 2dp. Monetary
+          value in the account's billing currency, account grain.
+      - name: max_days_overdue
+        description: >
+          Maximum number of days overdue across the account's invoices
+          (days_overdue is 0 for any invoice not in 'overdue' status).
+          Integer, account grain.
+      - name: payment_health_score
+        description: >
+          Payment health score on a 0-100 scale, higher = healthier. Starts at
+          100 and is reduced by penalties for failed payments (up to 30 pts),
+          consecutive failures (up to 30 pts), overdue invoices (up to 20
+          pts), and days overdue (up to 20 pts). Decimal number, account
+          grain. Distinct from churn_risk_score, which is a separate 0-100
+          "higher = more at risk" score combining payment, support, and usage
+          signals.
+      - name: payment_health_band
+        description: "Payment health classification from int_payment_health."
+        data_tests:
+          - accepted_values:
+              values: ['critical', 'poor', 'at_risk', 'healthy']
+      - name: consecutive_failure_count
+        description: >
+          Count of the account's payments that were immediately preceded, in
+          created_at order, by another failed payment for the same account —
+          i.e. back-to-back payment failures. Integer count, account grain.
+          Distinct from repeat_failures (a single payment's retry_count >= 2)
+          and total_cumulative_failures (running total of failed payments over
+          time).
+      - name: total_cumulative_failures
+        description: >
+          Maximum value reached by a running cumulative count of the
+          account's failed payments, ordered by created_at — in this dataset
+          equivalent to the account's total number of failed payments, but
+          computed via a window function rather than a direct count. Integer,
+          account grain. Distinct from failed_payments (same underlying
+          count, computed by direct COUNTIF instead).
+      - name: most_recent_failure_reason
+        description: >
+          The failure_reason recorded on the account's most recent failed
+          payment, by payment created_at date (int_payment_health selects the
+          top row per account ordered by created_at desc, filtered to failed
+          payments). NULL if the account has no failed payments, or the
+          failed payment has no failure_reason recorded.
+      - name: latest_payment_date
+        description: >
+          Most recent payment_date among the account's payments. NULL if the
+          account has no payments. Account grain.
+      - name: total_payments
+        description: >
+          Total count of payment transactions recorded for the account,
+          across all payment statuses. Integer count, account grain.
+      - name: successful_payments
+        description: >
+          Count of the account's payment transactions with payment_status =
+          'successful'. Integer count, account grain.
+      - name: failed_payments
+        description: >
+          Count of the account's payment transactions with payment_status =
+          'failed'. Integer count, account grain. Distinct from
+          repeat_failures (retry_count >= 2 on a payment), consecutive_failure_count
+          (back-to-back failures by date order), and total_cumulative_failures
+          (running-total window calculation of the same underlying failures).
+      - name: total_tickets
+        description: >
+          Total count of support tickets logged for the account. Integer
+          count, account grain.
+      - name: high_priority_tickets
+        description: >
+          Count of the account's support tickets with priority 'high' or
+          'critical'. Integer count, account grain.
+      - name: low_csat_tickets
+        description: >
+          Count of the account's support tickets with a CSAT score of 2 or
+          below, on the source system's 1-5 CSAT scale (confirmed against
+          BigQuery data). Integer count, account grain.
+      - name: escalated_tickets
+        description: >
+          Count of the account's support tickets currently in 'escalated'
+          status. Integer count, account grain.
+      - name: open_tickets
+        description: >
+          Count of the account's support tickets currently in 'open' status.
+          Integer count, account grain.
+      - name: avg_csat_score
+        description: >
+          Average CSAT score across the account's support tickets that have a
+          non-null score, on the source system's 1-5 CSAT scale (confirmed
+          against BigQuery data). Decimal value, account grain. NULL if the
+          account has no tickets with a recorded CSAT score.
+      - name: avg_resolution_hours
+        description: >
+          Average time to resolve the account's support tickets, in hours
+          (resolved_at minus created_at). Decimal value, account grain. NULL
+          if the account has no tickets with both created_at and resolved_at
+          recorded.
+      - name: latest_ticket_date
+        description: >
+          Timestamp of the account's most recently created support ticket.
+          NULL if the account has no support tickets. Account grain.
+      - name: distinct_features_used
+        description: >
+          Count of distinct product features the account has used at least
+          once, based on feature usage records with a valid usage_date.
+          Integer count, account grain.
+      - name: total_usage_count
+        description: >
+          Sum of usage_count across all of the account's feature usage
+          records. Integer, account grain. Represents total volume of feature
+          interactions, not a count of distinct usage days.
+      - name: power_usage_days
+        description: >
+          Count of the account's feature-usage rows classified as 'power'
+          engagement level (usage_count >= 100 on that row). Integer count,
+          account grain. Despite the "days" in the name, this counts usage
+          rows (one per account/feature/date combination), which is not
+          necessarily the same as a count of distinct calendar days.
+      - name: inactive_days
+        description: >
+          Count of the account's feature-usage rows classified as 'inactive'
+          engagement level (usage_count = 0 on that row). Integer count,
+          account grain. As with power_usage_days, this counts usage rows,
+          not necessarily distinct calendar days.
+      - name: latest_usage_date
+        description: >
+          Most recent feature usage_date recorded for the account, excluding
+          usage rows with a missing usage_date. NULL if the account has no
+          valid feature usage records. Account grain.
+      - name: avg_session_duration_minutes
+        description: >
+          Average session duration in minutes across the account's feature
+          usage records (converted from session_duration_seconds / 60).
+          Decimal value, account grain. NULL if none of the account's usage
+          rows have a recorded session duration.
       - name: churn_risk_score
         description: "0-100 score. Higher = more at risk. Combines payment, support, and usage signals."
         data_tests:
@@ -30,38 +257,30 @@ models:
           - not_null
           - accepted_values:
               values: ['critical', 'high', 'medium', 'low']
-      - name: payment_health_band
-        description: "Payment health classification from int_payment_health."
-        data_tests:
-          - accepted_values:
-              values: ['critical', 'poor', 'at_risk', 'healthy']
-      - name: revenue_health_band
-        description: "Overall revenue health classification."
-      - name: total_mrr
-        description: "Total monthly recurring revenue for the account."
-      - name: total_arr
-        description: "Total annual recurring revenue for the account."
+      - name: days_since_last_ticket
+        description: >
+          Days between today (pipeline run date) and the account's
+          latest_ticket_date. NULL if the account has no support tickets.
+          Integer; recalculated on each pipeline run, so the value changes
+          over time even if the underlying ticket data doesn't.
+      - name: days_since_last_usage
+        description: >
+          Days between today (pipeline run date) and the account's
+          latest_usage_date. NULL if the account has no feature usage
+          records. Integer; recalculated on each pipeline run.
+      - name: days_since_last_payment
+        description: >
+          Days between today (pipeline run date) and the account's
+          latest_payment_date. NULL if the account has no payment records.
+          Integer; recalculated on each pipeline run.
       - name: mrr_at_risk
         description: "MRR exposed to churn risk based on risk band weighting."
       - name: arr_at_risk
         description: "ARR exposed to churn risk based on risk band weighting."
-      - name: collection_rate_pct
-        description: "Percentage of billed revenue successfully collected."
-      - name: payment_failure_rate_pct
-        description: "Percentage of payment attempts that failed."
       - name: recommended_action
         description: "Suggested next action based on churn risk band."
         data_tests:
           - not_null
-      - name: tier
-        description: >
-          Segment classification for the account. Valid values are: starter,
-          growth, enterprise. These are ordered from smallest to largest, so
-          enterprise is the highest tier and starter the lowest. Use to break
-          down churn, revenue, or funnel analysis by customer segment.
-        data_tests:
-          - accepted_values:
-              values: ['starter', 'growth', 'enterprise']
       - name: mart_updated_at
         description: "Timestamp of when this mart was last refreshed."
         data_tests:
@@ -69,9 +288,9 @@ models:
 
   - name: mart_revenue
     description: >
-      Final revenue mart. One row per account with complete billing health, 
-      subscription metrics, payment health, revenue classification, and 
-      customer lifetime value estimate. Primary table for the revenue 
+      Final revenue mart. One row per account with complete billing health,
+      subscription metrics, payment health, revenue classification, and
+      customer lifetime value estimate. Primary table for the revenue
       dashboard in Looker Studio.
     columns:
       - name: account_id
@@ -79,41 +298,224 @@ models:
         data_tests:
           - unique
           - not_null
+      - name: account_name
+        description: >
+          Human-readable name of the customer account, sourced from the CRM
+          account record via int_accounts_with_subscriptions. One value per
+          account_id (account grain).
+      - name: industry
+        description: >
+          Industry classification of the account, lowercased and trimmed from
+          the CRM account record. One value per account_id.
+      - name: country
+        description: >
+          Country of the account, lowercased and trimmed from the CRM account
+          record. One value per account_id.
+      - name: tier
+        description: >
+          Segment classification for the account, sourced directly from the CRM
+          accounts record (lowercased, trimmed; unchanged through int_accounts_with_subscriptions).
+          Valid values are: starter, growth, enterprise, ordered from smallest to
+          largest. One value per account_id. Use to break down revenue metrics by
+          customer segment.
+        data_tests:
+          - accepted_values:
+              values: ['starter', 'growth', 'enterprise']
+      - name: tier_rank
+        description: >
+          Numeric ranking mirroring tier: 3 = enterprise, 2 = growth,
+          1 = starter, 0 = tier value not recognised. One value per
+          account_id.
+      - name: account_status
+        description: >
+          Lifecycle status of the account, lowercased and trimmed from the CRM
+          account record. Observed values (enforced by a staging data test):
+          active, churned, prospect. One value per account_id.
+      - name: is_churned
+        description: >
+          TRUE when the account's account_status equals 'churned'. FALSE
+          otherwise, including for prospects and currently active accounts.
+          One value per account_id.
+      - name: created_at
+        description: >
+          Timestamp the account record was created in the CRM source system.
+          One value per account_id.
+      - name: total_subscriptions
+        description: >
+          Total count of all subscriptions ever recorded for the account,
+          excluding rows with an inverted date range (treated upstream as
+          dirty data). Integer count, account grain.
+      - name: active_subscriptions
+        description: >
+          Count of the account's subscriptions currently in 'active' status.
+          Integer count, account grain. 0 if the account has no active
+          subscriptions.
+      - name: churned_subscriptions
+        description: >
+          Count of the account's subscriptions currently in 'churned' status.
+          Integer count, account grain.
+      - name: total_mrr
+        description: "Total monthly recurring revenue for the account."
+      - name: total_arr
+        description: "Total annual recurring revenue for the account."
+      - name: earliest_subscription_start
+        description: >
+          Start date of the account's earliest (first) subscription. NULL if
+          the account has no subscriptions. Account grain.
+      - name: latest_subscription_start
+        description: >
+          Start date of the account's most recently started subscription.
+          NULL if the account has no subscriptions. Account grain.
+      - name: avg_subscription_duration_days
+        description: >
+          Average subscription duration in days across the account's
+          subscriptions, after excluding subscriptions with an invalid
+          inverted date range. Decimal value, account grain. 0 if the account
+          has no subscriptions.
+      - name: total_invoices
+        description: >
+          Total count of invoices issued to the account, across all payment
+          statuses. Integer count, account grain.
+      - name: paid_invoices
+        description: >
+          Count of the account's invoices with payment_status = 'paid'.
+          Integer count, account grain.
+      - name: overdue_invoices
+        description: >
+          Count of the account's invoices currently in 'overdue' payment
+          status. Integer count, account grain.
+      - name: total_billed
+        description: >
+          Total amount invoiced to the account (sum of amount_due across the
+          account's invoices), rounded to 2dp. Monetary value in the account's
+          billing currency, account grain.
+      - name: total_collected
+        description: >
+          Total amount actually paid against invoices (sum of amount_paid,
+          coalesced to 0), rounded to 2dp. Monetary value in the account's
+          billing currency, account grain.
+      - name: total_outstanding
+        description: >
+          Total unpaid balance across the account's invoices (amount_due
+          minus amount_paid, summed), rounded to 2dp. Monetary value in the
+          account's billing currency, account grain.
+      - name: max_days_overdue
+        description: >
+          Maximum number of days overdue across the account's invoices.
+          Integer, account grain.
+      - name: collection_rate_pct
+        description: "Percentage of billed revenue successfully collected."
+      - name: payment_failure_rate_pct
+        description: >
+          Percentage of the account's payment transactions that failed, on a
+          0-100 scale (failed_payments ÷ total_payments × 100). 0 if the
+          account has no payment transactions. Account grain.
+      - name: total_payments
+        description: >
+          Total count of payment transactions recorded for the account,
+          across all payment statuses. Integer count, account grain.
+      - name: successful_payments
+        description: >
+          Count of the account's payment transactions with payment_status =
+          'successful'. Integer count, account grain.
+      - name: failed_payments
+        description: >
+          Count of the account's payment transactions with payment_status =
+          'failed'. Integer count, account grain. Distinct from
+          repeat_failures (retry_count >= 2 on a payment), consecutive_failure_count
+          (back-to-back failures by date order), and total_cumulative_failures
+          (running-total window calculation of the same underlying failures).
+      - name: repeat_failures
+        description: >
+          Count of the account's payment transactions flagged as repeat
+          failures, where a payment's retry_count >= 2. Integer count,
+          account grain. Distinct from consecutive_failure_count
+          (back-to-back failed payments by date order) and
+          total_cumulative_failures (running total of failed payments).
+      - name: total_payment_amount
+        description: >
+          Sum of amounts from the account's successful payment transactions
+          only (failed/pending payments contribute 0), rounded to 2dp.
+          Monetary value in the account's billing currency, account grain.
+          Distinct from total_collected: this is computed from the payments
+          table (payments.amount), while total_collected is computed from the
+          invoices table (invoices.amount_paid) — the two are conceptually
+          similar but sourced and calculated independently.
+      - name: payment_health_score
+        description: >
+          Payment health score on a 0-100 scale, higher = healthier. Starts at
+          100 and is reduced by penalties for failed payments, consecutive
+          failures, overdue invoices, and days overdue. Decimal number,
+          account grain.
+      - name: payment_health_band
+        description: "Payment health classification from int_payment_health."
+        data_tests:
+          - accepted_values:
+              values: ['critical', 'poor', 'at_risk', 'healthy']
+      - name: consecutive_failure_count
+        description: >
+          Count of the account's payments that were immediately preceded, in
+          created_at order, by another failed payment for the same account —
+          i.e. back-to-back payment failures. Integer count, account grain.
+          Distinct from repeat_failures (a single payment's retry_count >= 2)
+          and total_cumulative_failures (running total of failed payments).
+      - name: total_cumulative_failures
+        description: >
+          Maximum value reached by a running cumulative count of the
+          account's failed payments, ordered by created_at — in this dataset
+          equivalent to the account's total number of failed payments, but
+          computed via a window function rather than a direct count. Integer,
+          account grain.
+      - name: most_recent_failure_reason
+        description: >
+          The failure_reason recorded on the account's most recent failed
+          payment, by payment created_at date (int_payment_health selects the
+          top row per account ordered by created_at desc, filtered to failed
+          payments). NULL if the account has no failed payments, or the
+          failed payment has no failure_reason recorded.
+      - name: latest_payment_date
+        description: >
+          Most recent payment_date among the account's payments. NULL if the
+          account has no payments. Account grain. Pairs with
+          first_payment_date.
+      - name: first_payment_date
+        description: >
+          Earliest payment_date among the account's payments. NULL if the
+          account has no payments. Account grain. Pairs with
+          latest_payment_date.
+      - name: avg_payment_amount
+        description: >
+          Average amount of the account's successful payment transactions
+          only, rounded to 2dp. Monetary value in the account's billing
+          currency, account grain. NULL if the account has no successful
+          payments.
       - name: revenue_health_band
         description: "Overall revenue health classification per account."
         data_tests:
           - not_null
           - accepted_values:
               values: ['healthy', 'stable', 'at_risk', 'critical', 'no_revenue']
-      - name: payment_health_band
-        description: "Payment health classification from int_payment_health."
-        data_tests:
-          - accepted_values:
-              values: ['critical', 'poor', 'at_risk', 'healthy']
-      - name: total_mrr
-        description: "Total monthly recurring revenue for the account."
-      - name: total_arr
-        description: "Total annual recurring revenue for the account."
       - name: arr_at_risk
         description: "Annualised revenue at risk based on collection rate."
       - name: net_revenue
         description: "Total collected minus total outstanding revenue."
-      - name: collection_rate_pct
-        description: "Percentage of billed revenue successfully collected."
       - name: outstanding_pct
         description: "Outstanding revenue as a percentage of total billed."
       - name: estimated_clv
         description: "Estimated customer lifetime value: MRR x avg subscription duration in months."
       - name: customer_tenure_days
         description: "Days since the account's earliest subscription start date."
+      - name: days_since_latest_subscription
+        description: >
+          Days between today (pipeline run date) and the account's
+          latest_subscription_start date. NULL if the account has no
+          subscriptions. Integer; recalculated on each pipeline run. Distinct
+          from customer_tenure_days, which measures from the earliest (first)
+          subscription rather than the latest.
       - name: has_expanded
         description: "True if the account has taken on additional subscriptions over time."
       - name: has_contracted
         description: "True if the account has churned subscriptions alongside active ones."
-      - name: tier
-        data_tests:
-          - accepted_values:
-              values: ['starter', 'growth', 'enterprise']
       - name: mart_updated_at
         description: "Timestamp of when this mart was last refreshed."
         data_tests:
@@ -121,54 +523,257 @@ models:
 
   - name: mart_sales_funnel
     description: >
-      Final sales funnel mart. One row per lead tracking the full journey 
-      from lead creation through campaign attribution, conversion, pipeline 
-      stage, and closed won or lost. Includes engagement quality, deal 
-      velocity, and campaign ROI signals. Primary table for the marketing 
+      Final sales funnel mart. One row per lead tracking the full journey
+      from lead creation through campaign attribution, conversion, pipeline
+      stage, and closed won or lost. Includes engagement quality, deal
+      velocity, and campaign ROI signals. Primary table for the marketing
       and sales dashboard in Looker Studio.
     columns:
+      - name: account_name
+        description: >
+          Name of the account associated with the lead's contact, joined from
+          the CRM account record. NULL if the lead's contact has no linked
+          account (e.g. an orphaned contact) or the lead has no contact.
+          This mart is at LEAD grain, not account grain — the same
+          account_name repeats on every lead belonging to that account.
+      - name: tier
+        description: >
+          Segment tier (starter, growth, enterprise) of the account
+          associated with the lead, joined from the CRM account record. NULL
+          if the lead has no linked account. This mart is at LEAD grain, not
+          account grain — the same tier value repeats on every lead belonging
+          to that account.
+      - name: tier_rank
+        description: >
+          Numeric ranking mirroring tier: 3 = enterprise, 2 = growth,
+          1 = starter, 0 = tier value not recognised. Joined from the account
+          record; repeats per lead for the same account since this mart is at
+          LEAD grain, not account grain. NULL if the lead has no linked
+          account.
+      - name: industry
+        description: >
+          Industry of the account associated with the lead, joined from the
+          CRM account record. Repeats per lead for the same account since
+          this mart is at LEAD grain, not account grain. NULL if the lead has
+          no linked account.
       - name: lead_id
         description: "Primary key. Unique identifier per lead."
         data_tests:
           - unique
           - not_null
-      - name: funnel_stage
-        description: "Current stage of the lead in the funnel."
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: ['1_lead', '2_converted', '3_in_pipeline', '4_closed_won', '4_closed_lost']
-      - name: lead_outcome
-        description: "Final outcome of the lead."
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: ['closed_won', 'closed_lost', 'in_pipeline', 'not_converted']
+      - name: contact_id
+        description: >
+          Foreign key to the CRM contact who owns this lead. One contact per
+          lead.
+      - name: account_id
+        description: >
+          Foreign key to the account linked to the lead's contact. NULL if
+          the contact has no account (an orphaned contact) or the lead has no
+          linked contact.
+      - name: campaign_id
+        description: >
+          Foreign key to the marketing campaign that generated this lead.
+          NULL for organically-sourced leads with no campaign attribution
+          (see attribution_type).
+      - name: campaign_name
+        description: >
+          Name of the attributed marketing campaign. NULL for organic leads
+          with no campaign_id.
+      - name: campaign_type
+        description: >
+          Type/category of the attributed campaign, lowercased and trimmed
+          from the CRM campaign record. NULL for organic leads.
+      - name: channel
+        description: >
+          Marketing channel of the attributed campaign, lowercased and
+          trimmed. NULL for organic leads.
+      - name: lead_source
+        description: "Original source channel that generated the lead."
+      - name: lead_status
+        description: >
+          Current CRM status of the lead, lowercased and trimmed. Distinct
+          from lead_outcome and funnel_stage, which are derived downstream
+          classifications rather than the raw CRM status.
+      - name: assigned_rep
+        description: "Sales rep assigned to the lead in the CRM."
       - name: attribution_type
         description: "Whether the lead came from a campaign or organic source."
         data_tests:
           - not_null
           - accepted_values:
               values: ['campaign', 'organic']
+      - name: lead_outcome
+        description: "Final outcome of the lead."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['closed_won', 'closed_lost', 'in_pipeline', 'not_converted']
+      - name: lead_created_at
+        description: >
+          Timestamp the lead was created in the CRM. Starting point for
+          days_to_convert and days_lead_to_close.
+      - name: converted_at
+        description: >
+          Timestamp the lead converted, from the CRM. NULL if the lead has
+          not converted (is_converted = false).
+      - name: is_converted
+        description: >
+          TRUE if the lead's CRM status is 'converted'. FALSE otherwise.
+      - name: days_to_convert
+        description: "Days from lead creation to conversion. Null if not converted."
+      - name: is_decision_maker
+        description: >
+          TRUE if the lead's linked contact holds a decision-maker job title
+          (ceo, cto, cfo, vp of sales, head of operations, or sales
+          director). FALSE otherwise, including when the lead has no linked
+          contact or account.
+      - name: budget
+        description: >
+          Planned budget of the attributed campaign, rounded to 2dp. Monetary
+          value in the account's billing currency. NULL for organic leads
+          with no campaign.
+      - name: actual_spend
+        description: >
+          Actual amount spent on the attributed campaign, rounded to 2dp.
+          Monetary value in the account's billing currency. NULL for organic
+          leads with no campaign, or if spend was not recorded for the
+          campaign.
+      - name: budget_utilisation_pct
+        description: >
+          Percentage of campaign budget spent, on a 0-100 scale
+          (actual_spend ÷ budget × 100). NULL if actual_spend is missing or
+          budget is 0/null.
+      - name: opportunity_id
+        description: >
+          Foreign key to the sales opportunity linked to this lead. NULL if
+          the lead has not produced an opportunity. When a lead has multiple
+          opportunities, the one selected is prioritised in this order:
+          closed won, negotiation, proposal, qualification, prospecting,
+          closed lost — tie-broken by highest amount.
+      - name: opportunity_stage
+        description: >
+          Current stage of the linked opportunity, lowercased and trimmed.
+          Known values referenced in the pipeline logic include: prospecting,
+          qualification, proposal, negotiation, closed won, closed lost.
+          NULL if the lead has no linked opportunity.
+      - name: opportunity_amount
+        description: "Value of the linked opportunity in the account currency."
+      - name: weighted_amount
+        description: "Opportunity amount weighted by close probability."
+      - name: is_won
+        description: >
+          TRUE if the linked opportunity's stage is 'closed won'. For a lead
+          with a linked opportunity, exactly one of is_won / is_lost / is_open
+          is TRUE (mutually exclusive by construction). All three are NULL,
+          not FALSE, if the lead has no linked opportunity.
+      - name: is_lost
+        description: >
+          TRUE if the linked opportunity's stage is 'closed lost'. Mutually
+          exclusive with is_won and is_open (see is_won). NULL if the lead
+          has no linked opportunity.
+      - name: is_open
+        description: >
+          TRUE if the linked opportunity's stage is anything other than
+          'closed won' or 'closed lost' (i.e. still in the pipeline —
+          prospecting, qualification, proposal, negotiation, etc.). Mutually
+          exclusive with is_won and is_lost (see is_won). NULL if the lead
+          has no linked opportunity.
+      - name: close_date
+        description: >
+          Date the linked opportunity closed (won or lost). NULL if the
+          opportunity is still open, the lead has no linked opportunity, or
+          the source recorded a closed opportunity with a missing close date
+          (flagged upstream as dirty data).
+      - name: probability
+        description: >
+          Close probability of the linked opportunity, on a 0-100 scale
+          (used to compute weighted_amount as opportunity_amount × probability
+          ÷ 100). NULL if the lead has no linked opportunity.
+      - name: funnel_stage
+        description: "Current stage of the lead in the funnel."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['1_lead', '2_converted', '3_in_pipeline', '4_closed_won', '4_closed_lost']
+      - name: total_activities
+        description: >
+          Count of sales activities (calls, meetings, demos, emails, etc.)
+          logged against the lead's linked opportunity. 0 if the lead has no
+          linked opportunity or no activities were logged.
+      - name: high_touch_activities
+        description: >
+          Count of the opportunity's activities that are "high touch"
+          (activity_type is call, meeting, or demo — excludes email). 0 if
+          none, or no linked opportunity.
+      - name: positive_outcomes
+        description: >
+          Count of the opportunity's activities with a positive outcome
+          (outcome in: meeting booked, interested, sent, opened). 0 if none,
+          or no linked opportunity.
+      - name: total_calls
+        description: >
+          Count of the opportunity's activities where activity_type = 'call'.
+          0 if none, or no linked opportunity.
+      - name: total_meetings
+        description: >
+          Count of the opportunity's activities where activity_type =
+          'meeting'. 0 if none, or no linked opportunity.
+      - name: total_demos
+        description: >
+          Count of the opportunity's activities where activity_type =
+          'demo'. 0 if none, or no linked opportunity.
+      - name: total_emails
+        description: >
+          Count of the opportunity's activities where activity_type =
+          'email'. 0 if none, or no linked opportunity.
+      - name: reps_involved
+        description: >
+          Count of distinct sales reps who logged an activity against the
+          opportunity. 0 if none, or no linked opportunity.
+      - name: avg_activity_duration
+        description: >
+          Average duration in minutes of the opportunity's activities. NULL
+          if the lead has no linked opportunity, or none of its activities
+          have a recorded duration. Unlike the count columns above, this is
+          NOT coalesced to 0 when there are no activities.
+      - name: positive_outcome_rate
+        description: >
+          Percentage of the opportunity's activities with a positive outcome,
+          on a 0-100 scale (positive_outcomes ÷ total_activities × 100). NULL
+          if the lead has no linked opportunity, or the opportunity has zero
+          activities (not coalesced to 0).
       - name: engagement_quality
         description: "Quality of sales engagement on the linked opportunity."
         data_tests:
           - accepted_values:
               values: ['no_engagement', 'high', 'medium', 'low']
-      - name: lead_source
-        description: "Original source channel that generated the lead."
-      - name: days_to_convert
-        description: "Days from lead creation to conversion. Null if not converted."
+      - name: days_since_last_activity
+        description: >
+          Days between today (pipeline run date) and the opportunity's
+          latest_activity_date. NULL if the lead has no linked opportunity or
+          the opportunity has no logged activities. Integer; recalculated on
+          each pipeline run.
+      - name: latest_activity_date
+        description: >
+          Date of the most recent activity logged against the opportunity.
+          NULL if the lead has no linked opportunity or no activities were
+          logged.
+      - name: first_activity_date
+        description: >
+          Date of the earliest activity logged against the opportunity. NULL
+          if the lead has no linked opportunity or no activities were logged.
       - name: days_lead_to_close
         description: "Days from lead creation to closed won. Null if not won."
       - name: days_convert_to_close
         description: "Days from conversion to closed won. Null if not won."
+      - name: campaign_spend
+        description: >
+          actual_spend rounded to 2dp, populated only when actual_spend is
+          recorded and greater than 0; NULL otherwise. Monetary value in the
+          account's billing currency. Effectively a filtered copy of
+          actual_spend used as the denominator for revenue_per_spend.
       - name: revenue_per_spend
         description: "Closed won opportunity amount divided by campaign spend. ROI signal."
-      - name: opportunity_amount
-        description: "Value of the linked opportunity in the account currency."
-      - name: weighted_amount
-        description: "Opportunity amount weighted by close probability."
       - name: mart_updated_at
         description: "Timestamp of when this mart was last refreshed."
         data_tests:

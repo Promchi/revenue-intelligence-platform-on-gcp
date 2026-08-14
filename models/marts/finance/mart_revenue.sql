@@ -65,7 +65,6 @@ joined as (
         ph.latest_payment_date,
         ph.first_payment_date,
         ph.avg_payment_amount,
-        ph.consecutive_failure_count     as consec_failures,
 
         -- revenue health classification
         case

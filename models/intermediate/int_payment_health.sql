@@ -48,6 +48,20 @@ payment_timeline as (
     from payments
 ),
 
+-- failure reason of each account's most recent failed payment, by date
+-- (not an alphabetical max of the text, which is what this used to compute)
+last_failure as (
+    select
+        account_id,
+        failure_reason as most_recent_failure_reason
+    from payment_timeline
+    where is_failed = true
+    qualify row_number() over (
+        partition by account_id
+        order by created_at desc
+    ) = 1
+),
+
 -- aggregate payment health per account
 account_payment_health as (
     select
@@ -66,10 +80,7 @@ account_payment_health as (
 
         -- consecutive failure indicator
         countif(is_failed = true
-            and prev_payment_failed = true)       as consecutive_failure_count,
-
-        -- most common failure reason
-        max(failure_reason)                       as most_recent_failure_reason
+            and prev_payment_failed = true)       as consecutive_failure_count
 
     from payment_timeline
     group by account_id
@@ -79,6 +90,9 @@ account_payment_health as (
 joined as (
     select
         aph.*,
+
+        -- most recent failure reason (by payment date)
+        lf.most_recent_failure_reason,
 
         -- invoice context
         inv.total_invoices,
@@ -105,6 +119,7 @@ joined as (
         end as payment_health_band
 
     from account_payment_health aph
+    left join last_failure lf on aph.account_id = lf.account_id
     left join (
         select
             account_id,
