@@ -2,3 +2,6 @@
 target/
 dbt_packages/
 logs/
+agent/toolbox.exe
+agent/toolbox
+agent/.env
