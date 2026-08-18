@@ -1,0 +1,108 @@
+# ---------------------------------------------------------------------------
+# Delta on top of tools.shared.yaml: schema discovery + open-ended SQL.
+# Load together with tools.shared.yaml -- this file alone is incomplete,
+# it has no `source:` of its own and its toolset references tool names
+# defined in tools.shared.yaml:
+#
+#   toolbox --configs=tools.shared.yaml,tools.analyst-extra.yaml
+#
+# This is the surface that can answer ad hoc aggregate questions (e.g.
+# "which tier has the highest average churn risk") that no fixed menu of
+# tools can anticipate in advance.
+#
+# Google's docs attach this caution to bigquery-execute-sql (and, verified
+# against the docs, to unrelated utility tools like `wait` too -- it is a
+# general caution about tools whose behaviour is not statically determined
+# at config time, not a bespoke verdict on this one): "intended for
+# developer assistant workflows with human-in-the-loop and shouldn't be
+# used for production agents." Read that as "know what you're accepting,"
+# satisfied here by putting this file behind authentication with a human
+# reading every answer -- not by running it unattended.
+#
+# Governance still enforced at the source layer (in tools.shared.yaml)
+# regardless of what SQL run_query generates: writeMode: blocked makes
+# every statement SELECT-only, and allowedDatasets is checked via a
+# pre-execution dry run that rejects anything reaching outside `marts`
+# before it ever runs.
+#
+# Two things this file does NOT enforce, and can't -- build them into the
+# LangChain agent instead:
+#   1. That get_table_info is actually called before run_query. The tool
+#      description below asks for that; nothing here requires it.
+#   2. Audit logging of what run_query actually executes. Turn on BigQuery
+#      Data Access audit logs for whichever service account runs this
+#      merged config -- it must be a DIFFERENT identity than whatever runs
+#      tools.shared.yaml alone, so the two surfaces are independently
+#      auditable. (That separation comes from which credentials the
+#      process has at deploy time, not from anything in these YAML files.)
+# ---------------------------------------------------------------------------
+
+kind: tool
+name: list_datasets
+type: bigquery-list-dataset-ids
+source: marts-bq-source
+description: >
+  List the BigQuery datasets this agent is permitted to reach. Given
+  allowedDatasets is set on the source, this will only ever return `marts`.
+
+---
+kind: tool
+name: list_tables
+type: bigquery-list-table-ids
+source: marts-bq-source
+description: >
+  List the tables in a dataset. Use to discover which mart models exist
+  before inspecting them.
+
+---
+kind: tool
+name: get_dataset_info
+type: bigquery-get-dataset-info
+source: marts-bq-source
+description: >
+  Retrieve metadata for a dataset.
+
+---
+kind: tool
+name: get_table_info
+type: bigquery-get-table-info
+source: marts-bq-source
+description: >
+  Retrieve the schema for a table, including the business description of
+  the table and of every column: its meaning, unit and scale, grain,
+  permitted values for categorical fields, and what NULL signifies (these
+  come from the dbt schema.yml docs, persisted into BigQuery column
+  descriptions). ALWAYS call this for every table you intend to query
+  before calling run_query. Never infer a column's meaning from its name
+  alone -- this schema has columns (most_recent_failure_reason,
+  power_usage_days, inactive_days) whose names do not literally match
+  their computed behaviour, and guessing has been wrong before.
+
+---
+kind: tool
+name: run_query
+type: bigquery-execute-sql
+source: marts-bq-source
+description: >
+  Execute a read-only GoogleSQL SELECT statement against the marts dataset
+  and return the resulting rows. Only query tables whose schema you have
+  already inspected with get_table_info. Prefer a curated tool if one
+  already matches the question; use this for ad hoc aggregation, grouping,
+  or comparison questions the curated tools don't cover -- e.g. "which tier
+  has the highest average churn risk," which no fixed tool here answers.
+
+---
+kind: toolset
+name: revenue_intelligence_analyst_toolset
+tools:
+  - list_datasets
+  - list_tables
+  - get_dataset_info
+  - get_table_info
+  - run_query
+  - get_account_churn_risk
+  - list_high_risk_accounts
+  - get_account_revenue_health
+  - list_accounts_by_revenue_health
+  - get_funnel_summary_by_stage
+  - list_leads_by_outcome

@@ -1,0 +1,252 @@
+# ---------------------------------------------------------------------------
+# Single source of truth for the source connection and the six curated,
+# fixed-SQL tools. Every query the agent can run through these tools is
+# defined here, once, and reviewable in version control before it reaches
+# BigQuery.
+#
+# This file is loaded by BOTH surfaces:
+#   - curated-only deployment:  toolbox --config=tools.shared.yaml
+#   - analyst deployment:       toolbox --configs=tools.shared.yaml,tools.analyst-extra.yaml
+# (--configs merges files into one tool registry; a toolset in one file can
+# reference tool names defined in another, as long as both are loaded
+# together -- confirmed against the Toolbox CLI reference.)
+#
+# Run each deployment as a SEPARATE toolbox process under a SEPARATE service
+# account (different ADC / GOOGLE_APPLICATION_CREDENTIALS per process).
+# That is what actually gives you two independently auditable identities --
+# it does not depend on anything in this file being duplicated per surface.
+#
+# OPEN QUESTION, not resolved by this file: get_account_churn_risk and
+# get_account_revenue_health let a caller pull ANY account's financial and
+# churn data by account_id. If the curated-only deployment is genuinely
+# unauthenticated/open internet, that's a customer-data exposure question
+# independent of SQL safety -- decide whether those two tools belong in an
+# unauthenticated toolset at all, or only behind a surface scoped to the
+# logged-in customer's own account_id.
+# ---------------------------------------------------------------------------
+
+kind: source
+name: marts-bq-source
+type: bigquery
+project: project-6781bf86-eb56-440c-84b
+location: europe-west2
+writeMode: blocked
+allowedDatasets:
+  - marts
+maxQueryResultRows: 200
+maximumBytesBilled: 1073741824 # 1 GB per-query cap; raise if the marts grow
+
+---
+kind: tool
+name: get_account_churn_risk
+type: bigquery-sql
+source: marts-bq-source
+description: >
+  Look up churn risk details for a single account by account_id: churn risk
+  score (0-100, higher = more at risk), churn risk band, payment health
+  band, MRR/ARR at risk, and the recommended next action.
+statement: |
+  SELECT
+    account_id,
+    account_name,
+    tier,
+    churn_risk_score,
+    churn_risk_band,
+    payment_health_band,
+    mrr_at_risk,
+    arr_at_risk,
+    recommended_action
+  FROM `project-6781bf86-eb56-440c-84b.marts.mart_customer_churn`
+  WHERE account_id = @account_id
+parameters:
+  - name: account_id
+    type: string
+    description: The unique account_id to look up.
+
+---
+kind: tool
+name: list_high_risk_accounts
+type: bigquery-sql
+source: marts-bq-source
+description: >
+  List accounts in a given churn risk band, ranked by monthly recurring
+  revenue at risk. Use for "which accounts should we prioritise for
+  retention" questions.
+statement: |
+  SELECT
+    account_id,
+    account_name,
+    tier,
+    churn_risk_score,
+    churn_risk_band,
+    mrr_at_risk,
+    arr_at_risk,
+    recommended_action
+  FROM `project-6781bf86-eb56-440c-84b.marts.mart_customer_churn`
+  WHERE churn_risk_band = @risk_band
+  ORDER BY mrr_at_risk DESC
+  LIMIT @row_limit
+parameters:
+  - name: risk_band
+    type: string
+    description: The churn risk band to filter on.
+    allowedValues:
+      - critical
+      - high
+      - medium
+      - low
+  - name: row_limit
+    type: integer
+    description: Maximum number of accounts to return.
+    default: 20
+    minValue: 1
+    maxValue: 200
+
+---
+kind: tool
+name: get_account_revenue_health
+type: bigquery-sql
+source: marts-bq-source
+description: >
+  Look up revenue and billing health for a single account by account_id:
+  MRR, ARR, revenue health band, collection rate, outstanding balance, and
+  estimated customer lifetime value.
+statement: |
+  SELECT
+    account_id,
+    account_name,
+    tier,
+    revenue_health_band,
+    total_mrr,
+    total_arr,
+    collection_rate_pct,
+    outstanding_pct,
+    net_revenue,
+    estimated_clv
+  FROM `project-6781bf86-eb56-440c-84b.marts.mart_revenue`
+  WHERE account_id = @account_id
+parameters:
+  - name: account_id
+    type: string
+    description: The unique account_id to look up.
+
+---
+kind: tool
+name: list_accounts_by_revenue_health
+type: bigquery-sql
+source: marts-bq-source
+description: >
+  List accounts in a given revenue health band, ordered by ARR at risk
+  descending.
+statement: |
+  SELECT
+    account_id,
+    account_name,
+    tier,
+    revenue_health_band,
+    total_mrr,
+    total_arr,
+    arr_at_risk,
+    collection_rate_pct
+  FROM `project-6781bf86-eb56-440c-84b.marts.mart_revenue`
+  WHERE revenue_health_band = @health_band
+  ORDER BY arr_at_risk DESC
+  LIMIT @row_limit
+parameters:
+  - name: health_band
+    type: string
+    description: The revenue health band to filter on.
+    allowedValues:
+      - healthy
+      - stable
+      - at_risk
+      - critical
+      - no_revenue
+  - name: row_limit
+    type: integer
+    description: Maximum number of accounts to return.
+    default: 20
+    minValue: 1
+    maxValue: 200
+
+---
+kind: tool
+name: get_funnel_summary_by_stage
+type: bigquery-sql
+source: marts-bq-source
+description: >
+  Summarise the sales funnel by stage, returning lead counts alongside both
+  total and probability-weighted opportunity value, in natural funnel order.
+  Use for "what does the pipeline look like right now" questions. This is
+  lead grain, not account grain, so counts are leads rather than customers.
+statement: |
+  SELECT
+    funnel_stage,
+    COUNT(*) AS lead_count,
+    SUM(opportunity_amount) AS total_opportunity_amount,
+    SUM(weighted_amount) AS total_weighted_amount
+  FROM `project-6781bf86-eb56-440c-84b.marts.mart_sales_funnel`
+  GROUP BY funnel_stage
+  ORDER BY funnel_stage
+
+---
+kind: tool
+name: list_leads_by_outcome
+type: bigquery-sql
+source: marts-bq-source
+description: >
+  List leads with a given lead_outcome, optionally filtered to campaign or
+  organic attribution, ordered by opportunity_amount descending. Use for
+  "show me our closed-won deals from campaigns" style questions.
+statement: |
+  SELECT
+    lead_id,
+    account_name,
+    tier,
+    lead_source,
+    attribution_type,
+    lead_outcome,
+    opportunity_amount,
+    weighted_amount,
+    days_lead_to_close
+  FROM `project-6781bf86-eb56-440c-84b.marts.mart_sales_funnel`
+  WHERE lead_outcome = @lead_outcome
+    AND (@attribution_type = 'all' OR attribution_type = @attribution_type)
+  ORDER BY opportunity_amount DESC
+  LIMIT @row_limit
+parameters:
+  - name: lead_outcome
+    type: string
+    description: The lead outcome to filter on.
+    allowedValues:
+      - closed_won
+      - closed_lost
+      - in_pipeline
+      - not_converted
+  - name: attribution_type
+    type: string
+    description: >
+      Restrict to campaign or organic leads. Defaults to "all" (no
+      attribution filter) if not specified.
+    default: "all"
+    allowedValues:
+      - campaign
+      - organic
+      - all
+  - name: row_limit
+    type: integer
+    description: Maximum number of leads to return.
+    default: 20
+    minValue: 1
+    maxValue: 200
+
+---
+kind: toolset
+name: revenue_intelligence_curated_toolset
+tools:
+  - get_account_churn_risk
+  - list_high_risk_accounts
+  - get_account_revenue_health
+  - list_accounts_by_revenue_health
+  - get_funnel_summary_by_stage
+  - list_leads_by_outcome
