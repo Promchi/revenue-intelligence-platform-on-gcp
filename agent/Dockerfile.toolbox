@@ -1,0 +1,3 @@
+FROM us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:1.9.0
+COPY tools.shared.yaml /app/tools.shared.yaml
+COPY tools.analyst-extra.yaml /app/tools.analyst-extra.yaml

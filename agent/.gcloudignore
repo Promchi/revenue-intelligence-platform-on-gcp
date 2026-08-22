@@ -1,0 +1,5 @@
+toolbox.exe
+toolbox
+__pycache__/
+*.pyc
+.env

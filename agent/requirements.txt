@@ -2,3 +2,6 @@ langchain
 langgraph
 langchain-google-vertexai
 toolbox-langchain
+
+streamlit
+toolbox-core

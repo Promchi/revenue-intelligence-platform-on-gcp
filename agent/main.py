@@ -17,10 +17,11 @@ from langchain.agents import create_agent
 from langchain_google_vertexai import ChatVertexAI
 from langgraph.checkpoint.memory import InMemorySaver
 from toolbox_langchain import ToolboxClient
+from toolbox_core import auth_methods
 
 PROJECT_ID = "project-6781bf86-eb56-440c-84b"
 LOCATION = "europe-west2"
-TOOLBOX_URL = "http://127.0.0.1:5000"
+TOOLBOX_URL = "https://toolbox-560455219227.europe-west2.run.app"
 TOOLSET = "revenue_intelligence_analyst_toolset"
 
 # ---------------------------------------------------------------------------
@@ -99,8 +100,9 @@ async def main() -> None:
         location=LOCATION,
         temperature=0,
     )
-
-    async with ToolboxClient(TOOLBOX_URL) as client:
+    auth_token_provider = auth_methods.get_google_id_token(TOOLBOX_URL)
+    async with ToolboxClient(TOOLBOX_URL,
+                             client_headers={"Authorization": auth_token_provider}) as client:
         tools = await client.aload_toolset(TOOLSET)
         print(f"Loaded {len(tools)} tools from {TOOLSET}\n")
 
