@@ -14,9 +14,6 @@ cleaned as (
         lower(trim(channel))        as channel,
         owner,
 
-        -- a/b test variant (control | treatment | null for non-experiment campaigns)
-        lower(trim(campaign_variant)) as campaign_variant,
-
         -- financials
         cast(budget as numeric)       as budget,
         cast(actual_spend as numeric) as actual_spend,
