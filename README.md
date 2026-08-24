@@ -1,43 +1,22 @@
 # Revenue Intelligence Platform on GCP
 
-<<<<<<< HEAD
-An end-to-end analytics platform that unifies **CRM, ERP, and product-usage data** into a layered **dbt + BigQuery** warehouse and surfaces three executive dashboards in **Looker Studio**: Customer Churn, Revenue Health, and Sales Funnel.
+An end-to-end analytics platform that unifies CRM, ERP, and web event data into a layered dbt and BigQuery warehouse, surfaces three executive dashboards in Looker Studio, and exposes the same tested mart layer to a deployed conversational data agent.
 
 The platform answers the questions a revenue team actually cares about every Monday morning:
 
 - *Which accounts are most likely to churn, and how much revenue is at risk?*
-- *How healthy is our revenue today — what's collected, what's outstanding, what's at risk?*
+- *How healthy is our revenue today: what's collected, what's outstanding, what's at risk?*
 - *Where are leads falling out of the funnel, and which campaigns are returning real revenue?*
 
-## Live dashboards
-
-**[Open the live Looker Studio report](https://datastudio.google.com/reporting/c5270921-d001-40d0-8e88-46d3bea81199)**
-
-### Customer Churn Dashboard
-
-![Customer Churn Dashboard](images/customer_churn_dashboard.png)
-
-Tracks 496 accounts across CSAT, support tickets, feature-usage decay, and payment failures to produce a single **churn risk score** and band per account. The dashboard surfaces the 166 accounts at risk, ranks the ~£2.6m MRR / £31.2m ARR exposed to churn, and pairs every account with a **recommended action** (immediate intervention, executive business review, proactive check-in, or monitor).
-
-### Revenue Health Dashboard
-
-![Revenue Health Dashboard](images/revenue_health_dashboard.png)
-
-A finance-grade view of the book of business: £5.7m MRR / £68.1m ARR across 500 accounts, with a 69.6% collection rate and £18.2m outstanding. Accounts are classified into **revenue health bands** (Healthy, Stable, At Risk, Critical, No Revenue) by combining collection rate and payment health, with an **Estimated CLV** computed per account from MRR and average subscription duration.
-
-### Sales Funnel Dashboard
-
-![Sales Funnel Dashboard](images/sales_funnel_dashboard.png)
-
-Lead-to-close visibility across 3,000 leads, 240 closed-won deals, and £32.4m in closed-won revenue. Tracks lead volume by funnel stage, monthly lead creation seasonality, **average days to close (399.9)**, and **revenue per £ spent (£12.39)** — broken down by lead source, channel, and campaign so marketing knows what's actually paying back.
-=======
-> An end-to-end analytics pipeline on GCP that ingests CRM, ERP, and web event data to surface customer churn risk, revenue health, and sales funnel performance. Built with Airbyte, BigQuery, dbt Core, and Looker Studio. 14 staging models, 5 intermediate models, 3 mart tables, and 95 automated tests covering both structural and behavioural data validation.
+Built with Python, BigQuery, dbt Core, Looker Studio, MCP Toolbox, LangChain, Vertex AI, Cloud Run, and GitHub Actions. 14 staging models, 5 intermediate models, 3 mart tables, 95 automated tests, and 159 documented columns, with every change gated by CI before it reaches the mart layer.
 
 ---
 
-## Live Dashboard
+## Live
 
-🔗 **[View the live Looker Studio dashboard](https://datastudio.google.com/reporting/c5270921-d001-40d0-8e88-46d3bea81199)**
+**[Open the live Looker Studio report](https://datastudio.google.com/reporting/c5270921-d001-40d0-8e88-46d3bea81199)**
+
+The conversational agent runs on Cloud Run behind authentication. Screenshots below; access available on request.
 
 ---
 
@@ -48,10 +27,13 @@ Lead-to-close visibility across 3,000 leads, 240 closed-won deals, and £32.4m i
 - [Approach](#approach)
 - [Results](#results)
 - [Dashboards](#dashboards)
+- [Conversational Data Agent](#conversational-data-agent)
 - [Architecture](#architecture)
 - [Data Model](#data-model)
 - [Pipeline Layers](#pipeline-layers)
+- [dbt Documentation and Lineage](#dbt-documentation-and-lineage)
 - [Data Quality and Testing](#data-quality-and-testing)
+- [Continuous Integration](#continuous-integration)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [How to Run](#how-to-run)
@@ -61,11 +43,11 @@ Lead-to-close visibility across 3,000 leads, 240 closed-won deals, and £32.4m i
 
 ## About the Project
 
-The Revenue Intelligence Platform is a production-pattern, end-to-end modern data stack project built for a B2B SaaS business. It demonstrates the full analytics engineering workflow from raw source data through ingestion, multi-layer transformation, automated testing, and live dashboard visualisation.
+The Revenue Intelligence Platform is a production-pattern, end-to-end modern data stack project built for a B2B SaaS business. It demonstrates the full analytics engineering workflow from raw source data through ingestion, multi-layer transformation, automated testing, live dashboards, and a governed AI agent that queries the same trusted layer.
 
-The platform combines CRM data (HubSpot), ERP data (ERPNext), and web event data (GA4) into a unified analytical layer that answers three critical revenue questions: which customers are at risk of churning, where revenue is being lost in the billing cycle, and which leads are most likely to convert through the sales funnel.
+The platform combines CRM, ERP, and web event data, modelled on HubSpot, ERPNext, and GA4 schemas, into a unified analytical layer that answers three critical revenue questions: which customers are at risk of churning, where revenue is being lost in the billing cycle, and which leads are most likely to convert through the sales funnel.
 
-The architecture follows a strict separation of concerns. Each layer has one responsibility. Ingestion moves data faithfully. Staging cleans and standardises. Intermediate computes business logic. Marts serve precomputed, tested, trusted tables to the visualisation layer. By the time data reaches a dashboard, it has passed 95 automated quality checks across structural integrity and behavioural invariants.
+The architecture follows a strict separation of concerns. Each layer has one responsibility. Ingestion moves data faithfully. Staging cleans and standardises. Intermediate computes business logic. Marts serve precomputed, tested, trusted tables to every consumer. By the time data reaches a dashboard or an agent, it has passed 95 automated quality checks across structural integrity and behavioural invariants.
 
 ---
 
@@ -73,11 +55,11 @@ The architecture follows a strict separation of concerns. Each layer has one res
 
 To design and build a fully tested, end-to-end analytics pipeline that surfaces three critical revenue insights for a B2B SaaS business:
 
-1. **Customer churn risk** — a quantified risk score per account combining payment health, support ticket signals, and product usage patterns
-2. **Revenue health** — billing collection rates, outstanding revenue exposure, and customer lifetime value across the customer base
-3. **Sales funnel performance** — full lead-to-revenue attribution with deal velocity, campaign ROI, and conversion analysis
+1. **Customer churn risk**: a quantified risk score per account combining payment health, support ticket signals, and product usage patterns
+2. **Revenue health**: billing collection rates, outstanding revenue exposure, and customer lifetime value across the customer base
+3. **Sales funnel performance**: full lead-to-revenue attribution with deal velocity, campaign ROI, and conversion analysis
 
-The goal was to produce a single trusted analytical layer that business stakeholders can interrogate through a live dashboard without relying on ad hoc SQL queries or manual reporting.
+The goal was a single trusted analytical layer that business stakeholders can interrogate, whether through a dashboard or in plain English, without relying on ad hoc SQL or manual reporting.
 
 ---
 
@@ -85,21 +67,21 @@ The goal was to produce a single trusted analytical layer that business stakehol
 
 The project follows modern data stack architectural conventions across four distinct pipeline layers, each with a single responsibility.
 
-**Source data** was generated using a Python script that produces 118,430 rows across 14 tables spanning CRM, ERP, and web event domains. Realistic dirty data patterns were deliberately introduced to simulate production data quality conditions — orphaned records, inverted date ranges, repeat payment failures, low CSAT scores, missing conversion timestamps, and inconsistent categorical casing.
+**Source data** was generated using a Python script producing 118,430 rows across 14 tables spanning CRM, ERP, and web event domains. Realistic dirty data patterns were deliberately introduced to simulate production conditions: orphaned records, inverted date ranges, repeat payment failures, low CSAT scores, missing conversion timestamps, and inconsistent categorical casing.
 
-**Ingestion** brings raw source data into BigQuery RAW datasets via Airbyte using a GCS staging bucket as the landing zone. No transformations or business logic are applied at this layer.
+**Ingestion** is handled by a Python loader that writes the generated source tables directly into BigQuery RAW datasets. No transformations or business logic are applied at this layer.
 
 **Transformation** is handled entirely by dbt Core across three model layers:
 
-- **Staging** (14 models, materialised as views) — one model per source table. Casts data types, standardises categorical fields, and surfaces dirty data as derived boolean flags including `is_orphaned`, `is_date_inverted`, `is_low_csat`, `is_repeat_failure`, `is_high_touch`, and `is_conversion_date_missing`.
+- **Staging** (14 models, views): one model per source table. Casts data types, standardises categorical fields, and surfaces dirty data as derived boolean flags including `is_orphaned`, `is_date_inverted`, `is_low_csat`, `is_repeat_failure`, `is_high_touch`, and `is_conversion_date_missing`.
 
-- **Intermediate** (5 models, materialised as views) — computes business logic once and reuses it across mart models. Includes a multi-signal churn risk scoring model, a payment health timeline with consecutive failure detection, sales engagement intensity per opportunity, and the full lead-to-campaign-to-opportunity attribution chain.
+- **Intermediate** (5 models, views): computes business logic once and reuses it across mart models. Includes multi-signal churn risk scoring, a payment health timeline with consecutive failure detection, sales engagement intensity per opportunity, and the full lead-to-campaign-to-opportunity attribution chain.
 
-- **Marts** (3 tables, materialised as BigQuery tables) — final analytical layer that powers the dashboards directly. Organised into three business domains: core (customer churn), finance (revenue), and marketing (sales funnel).
+- **Marts** (3 tables): the analytical data product. Organised into three business domains: core (customer churn), finance (revenue), and marketing (sales funnel).
 
-**Visualisation** is delivered through Looker Studio with three dedicated report pages, each consuming one mart table. The visualisation layer does zero computation — every metric has already been calculated, tested, and validated upstream.
+**Consumption** happens through two independent consumers of the same mart layer: three Looker Studio dashboards, and a conversational data agent. Neither performs business logic. Every metric is calculated, tested, and validated upstream.
 
-**Testing** is enforced through 95 automated dbt tests covering both structural data validation (uniqueness, not nulls, accepted values, referential integrity) and behavioural data invariants (temporal ordering, business logic assertions) using the dbt_utils package.
+**Testing** is enforced through 95 automated dbt tests covering structural validation (uniqueness, not nulls, accepted values, referential integrity) and behavioural invariants (temporal ordering, business logic assertions) using the dbt_utils package.
 
 ---
 
@@ -113,17 +95,17 @@ The project follows modern data stack architectural conventions across four dist
 | Intermediate models built | 5 |
 | Mart tables materialised | 3 |
 | Automated data tests | 95 |
-| Test categories covered | Structural and behavioural |
+| Documented mart columns | 159 |
+| Data quality defects surfaced by documentation | 5 |
 | Test runtime | Under 60 seconds |
 | Dashboard pages delivered | 3 |
-| Dirty data patterns flagged | 7 |
-| Pipeline layers | 4 |
+| Independent mart consumers | 2 |
 
 The platform produces three production-grade analytical outputs:
 
 - A churn risk score (0 to 100) per account with MRR and ARR at risk quantified by risk band, alongside a recommended action per account
 - A revenue health classification per account combining collection rate, payment health, and subscription status with estimated customer lifetime value
-- A full sales funnel view tracking every lead through campaign attribution, conversion, opportunity stage, and closed won outcome, with deal velocity and campaign ROI
+- A full sales funnel view tracking every lead through campaign attribution, conversion, opportunity stage, and closed-won outcome, with deal velocity and campaign ROI
 
 ---
 
@@ -131,32 +113,76 @@ The platform produces three production-grade analytical outputs:
 
 ### Customer Churn Dashboard
 
-The customer churn dashboard surfaces account-level churn risk by combining payment health, support ticket signals, and feature usage adoption. Includes a bubble chart visualising five metrics simultaneously: feature usage, churn risk score, total MRR, churn risk band, and account name. Account-level detail table shows the highest risk accounts with their recommended retention action.
-
 ![Customer Churn Dashboard](images/customer_churn_dashboard.png)
+
+Tracks 496 accounts across CSAT, support tickets, feature-usage decay, and payment failures to produce a single churn risk score and band per account. Surfaces the 166 accounts at risk, ranks the roughly £2.6m MRR and £31.2m ARR exposed to churn, and pairs every account with a recommended action: immediate intervention, executive business review, proactive check-in, or monitor.
 
 ### Revenue Health Dashboard
 
-The revenue health dashboard tracks billing collection rates, outstanding revenue, and ARR exposure across the customer base. Account-level detail table with heatmap colour scales surface the accounts most at risk of revenue loss based on collection performance.
-
 ![Revenue Health Dashboard](images/revenue_health_dashboard.png)
+
+A finance-grade view of the book of business: £5.7m MRR and £68.1m ARR across 500 accounts, with a 69.6% collection rate and £18.2m outstanding. Accounts are classified into revenue health bands (Healthy, Stable, At Risk, Critical, No Revenue) by combining collection rate and payment health, with an estimated CLV computed per account from MRR and average subscription duration.
 
 ### Sales Funnel Dashboard
 
-The sales funnel dashboard delivers full lead-to-revenue tracking from lead creation through campaign attribution, conversion, pipeline stage, and closed won outcome. Includes time series analysis of leads created per month, conversion rates by lead source, and the top closed won opportunities by revenue.
-
 ![Sales Funnel Dashboard](images/sales_funnel_dashboard.png)
 
+Lead-to-close visibility across 3,000 leads, 240 closed-won deals, and £32.4m in closed-won revenue. Tracks lead volume by funnel stage, monthly lead creation seasonality, average days to close (399.9), and revenue per £ spent (£12.39), broken down by lead source, channel, and campaign so marketing knows what is actually paying back.
+
 ---
->>>>>>> da0a48027f19ba0505b863aa4a8f770524eb0952
+
+## Conversational Data Agent
+
+A deployed AI agent that answers questions about the mart layer in plain English, grounded in the same tested and documented models that feed the dashboards.
+
+Ask "which tier has the highest average churn risk" and it inspects the table's documented column meanings, writes SQL, runs it, and returns an answer alongside the query that produced it.
+
+### Grounding
+
+The agent does not see the data while it reasons. It sees the schema.
+
+All 159 mart columns are documented in `schema.yml` with business meaning, unit and scale, grain, permitted values for categorical fields, and what NULL signifies. `persist_docs` writes those descriptions into BigQuery as table metadata, where the agent reads them before composing any query.
+
+Writing those definitions surfaced five data quality defects that had been feeding dashboards undetected, including an aggregate returning the alphabetically last text value rather than the most recent record.
+
+### Governance
+
+Enforced at three layers, and tested rather than assumed:
+
+- **IAM**: the Toolbox service account holds BigQuery Data Viewer on the `marts` dataset only. Staging, intermediate, and raw are unreachable.
+- **Tool configuration**: `writeMode: blocked` permits SELECT only. `allowedDatasets` is checked by a pre-execution dry run. `maximumBytesBilled` caps scan cost per query. Parameters are validated against allowed values.
+- **System prompt**: the agent must inspect a table's documentation before writing SQL against it, and must say so plainly when the marts cannot answer a question rather than constructing a plausible substitute.
+
+Verified by negative testing: queries reaching outside `marts` are rejected before execution, writes are refused, and invalid parameter values are rejected at the server rather than silently returning zero rows.
+
+### Transparency
+
+Every answer displays the SQL that ran, read from the recorded tool calls in the message history rather than from the model's own account of what it did.
+
+### Components
+
+| Component | Role |
+|---|---|
+| BigQuery | Stores the mart tables and their column metadata |
+| MCP Toolbox | Exposes the marts as a fixed set of read-only tools (Cloud Run) |
+| Vertex AI (Gemini) | Interprets the question, chooses tools, writes SQL, composes the answer |
+| LangChain | Runs the tool loop and binds the tools to the model |
+| Streamlit | Chat interface (Cloud Run) |
+
+Two Cloud Run services, each running as its own least-privilege service account. The model never holds credentials; the tool layer never makes decisions.
+
+---
 
 ## Architecture
 
 ```
-<<<<<<< HEAD
                     ┌────────────────────────────────────────────┐
+                    │   Synthetic source generation (Python)     │
+                    │   CRM · ERP · Web event schemas            │
+                    └─────────────────────┬──────────────────────┘
+                                          │
+                    ┌─────────────────────▼──────────────────────┐
                     │            Raw data (BigQuery)             │
-                    │   CRM   ·   ERP   ·   Web / product usage  │
                     └─────────────────────┬──────────────────────┘
                                           │
                                   dbt sources.yml
@@ -177,73 +203,19 @@ The sales funnel dashboard delivers full lead-to-revenue tracking from lead crea
                     └─────────────────────┬──────────────────────┘
                                           │
                     ┌─────────────────────▼──────────────────────┐
-                    │              marts (tables)                │
+                    │        marts (tables) · 95 tests           │
                     │   core/mart_customer_churn                 │
                     │   finance/mart_revenue                     │
                     │   marketing/mart_sales_funnel              │
-                    └─────────────────────┬──────────────────────┘
-                                          │
-                    ┌─────────────────────▼──────────────────────┐
-                    │   Looker Studio dashboards (3 reports)     │
-                    └────────────────────────────────────────────┘
-```
-
-## Data sources
-
-The platform ingests three source systems into the `raw` BigQuery schema:
-
-| Source | Tables |
-|---|---|
-| **CRM** | accounts, contacts, leads, opportunities, campaigns, activities, support_tickets |
-| **ERP** | products, orders, invoices, subscriptions, payments |
-| **Web** | web_events, feature_usage |
-
-## Model layers
-
-**Staging (`models/staging/`)** — one model per source table, materialised as **views**. Renames columns to a consistent snake_case, casts types, and applies basic cleaning. Three subfolders: `crm/`, `erp/`, `web/`.
-
-**Intermediate (`models/intermediate/`)** — business-logic building blocks, materialised as **views**:
-- `int_accounts_with_subscriptions` — joins accounts to subscriptions, invoices, and payments to compute MRR, ARR, collection rate, and payment failure rate per account.
-- `int_payment_health` — payment-level signals: consecutive failures, cumulative failures, payment health score and band.
-- `int_customer_health` — account-level signals combining subscription, billing, support, and feature-usage data into a 0–100 **churn risk score** and band (critical / high / medium / low).
-- `int_sales_activity` — opportunity-level engagement: call/meeting/demo/email counts, reps involved, positive-outcome rate, engagement quality.
-- `int_leads_with_campaigns` — lead-to-opportunity-to-campaign join with attribution, budget utilisation, and conversion timing.
-
-**Marts (`models/marts/`)** — analytics-ready tables consumed by Looker Studio:
-- `core/mart_customer_churn` — one row per account with churn risk, MRR/ARR at risk, and recommended action.
-- `finance/mart_revenue` — one row per account with revenue health band, ARR at risk, net revenue, outstanding %, and estimated CLV.
-- `marketing/mart_sales_funnel` — one row per lead with funnel stage, deal velocity (days lead→close, convert→close), campaign spend, and revenue per £ spent.
-
-## Tech stack
-
-- **Warehouse:** Google BigQuery
-- **Transformation:** dbt (data build tool) with `dbt_utils`
-- **BI:** Looker Studio (formerly Google Data Studio)
-- **Source control:** Git / GitHub
-
-## Getting started
-
-### Prerequisites
-
-- Python 3.9+
-- A Google Cloud project with BigQuery enabled
-- A service-account key with BigQuery Data Editor + Job User roles
-- dbt-bigquery installed: `pip install dbt-bigquery`
-=======
-SOURCE SYSTEMS          INGESTION        STORAGE         WAREHOUSE
-──────────────          ─────────        ───────         ─────────
-HubSpot (CRM)   ──┐
-ERPNext (ERP)   ──┼──  Airbyte  ──────  GCS bucket  ──  BigQuery RAW
-GA4 (web events)──┘
-
-                                                              │
-                                                         dbt staging
-                                                              │
-                                                      dbt intermediate
-                                                              │
-                                                         dbt marts
-                                                              │
-                                                       Looker Studio
+                    └───────────┬────────────────────┬───────────┘
+                                │                    │
+                ┌───────────────▼──────┐   ┌─────────▼─────────────┐
+                │   Looker Studio      │   │  MCP Toolbox          │
+                │   3 dashboards       │   │       ↓               │
+                │                      │   │  LangChain + Vertex   │
+                │                      │   │       ↓               │
+                │                      │   │  Streamlit (Cloud Run)│
+                └──────────────────────┘   └───────────────────────┘
 ```
 
 ---
@@ -254,9 +226,9 @@ GA4 (web events)──┘
 
 | Domain | Tables |
 |--------|--------|
-| CRM (HubSpot) | accounts, contacts, leads, opportunities, activities, campaigns, support_tickets |
-| ERP (ERPNext) | products, orders, invoices, subscriptions, payments |
-| Web (GA4) | web_events, feature_usage |
+| CRM | accounts, contacts, leads, opportunities, activities, campaigns, support_tickets |
+| ERP | products, orders, invoices, subscriptions, payments |
+| Web | web_events, feature_usage |
 
 ### Deliberate data quality issues introduced
 
@@ -274,40 +246,41 @@ GA4 (web events)──┘
 
 ## Pipeline Layers
 
-### Staging (14 models — views)
+### Staging (14 models, views)
 
 One model per source table. Responsibilities:
+
 - Cast all columns to correct data types
-- Standardise categorical fields using LOWER(TRIM())
+- Standardise categorical fields using `LOWER(TRIM())`
 - Rename columns to project conventions
 - Derive dirty data flags as boolean columns
 - No joins, no aggregations, no business logic
 
 Organised into three subfolders matching source domains.
 
-### Intermediate (5 models — views)
+### Intermediate (5 models, views)
 
 | Model | Purpose |
 |-------|---------|
-| int_accounts_with_subscriptions | Account-level subscription, invoice, and payment aggregations |
-| int_customer_health | Multi-signal churn risk scoring per account |
-| int_payment_health | Payment timeline analysis with consecutive failure detection |
-| int_sales_activity | Sales engagement intensity per opportunity |
-| int_leads_with_campaigns | Lead-to-campaign-to-opportunity attribution chain |
+| int_accounts_with_subscriptions | Account-level subscription, invoice, and payment aggregations: MRR, ARR, collection rate, payment failure rate |
+| int_customer_health | Multi-signal churn risk scoring per account, producing a 0 to 100 score and band |
+| int_payment_health | Payment timeline analysis with consecutive failure detection and payment health band |
+| int_sales_activity | Sales engagement intensity per opportunity: call, meeting, demo, and email counts, reps involved, positive-outcome rate |
+| int_leads_with_campaigns | Lead to campaign to opportunity attribution chain with budget utilisation and conversion timing |
 
-### Marts (3 tables — materialised tables)
+### Marts (3 tables)
 
 | Model | Folder | Purpose |
 |-------|--------|---------|
-| mart_customer_churn | marts/core | Churn risk score, MRR/ARR at risk, recommended actions per account |
-| mart_revenue | marts/finance | Revenue health classification, collection rate, CLV, expansion flags |
-| mart_sales_funnel | marts/marketing | Funnel conversion, deal velocity, campaign ROI, engagement quality |
+| mart_customer_churn | marts/core | Churn risk score, MRR/ARR at risk, recommended action per account |
+| mart_revenue | marts/finance | Revenue health classification, collection rate, net revenue, outstanding %, estimated CLV |
+| mart_sales_funnel | marts/marketing | Funnel conversion, deal velocity, campaign spend, revenue per £ spent, engagement quality |
 
 ---
 
 ## dbt Documentation and Lineage
 
-The full dbt project documentation is auto-generated from model SQL files and schema.yml descriptions. The lineage graph below shows the complete data flow across the pipeline, from raw source tables through staging and intermediate transformations to the final mart tables that power the dashboards.
+The full dbt project documentation is auto-generated from model SQL files and `schema.yml` descriptions. The lineage graph shows the complete data flow from raw source tables through staging and intermediate transformations to the final mart tables.
 
 ![dbt Lineage Graph](images/dbt_docs_lineage_graph.png)
 
@@ -334,9 +307,45 @@ This builds a browsable static site at `http://localhost:8080` with every model 
 | relationships | Structural | Foreign key integrity across model references |
 | dbt_utils.expression_is_true | Behavioural | Business logic assertions on derived metrics |
 
-Behavioural tests use the `dbt_utils` package and validate logical invariants between columns — for example asserting that `days_lead_to_close` cannot be negative because a deal cannot close before its lead was created. These tests catch nonsense outputs that pass structural validation.
+Behavioural tests use the `dbt_utils` package and validate logical invariants between columns. For example, asserting that `days_lead_to_close` cannot be negative because a deal cannot close before its lead was created. These tests catch nonsense outputs that pass structural validation.
 
 Tests run in under 60 seconds and replace manual data validation entirely.
+
+Separately, documenting all 159 mart columns surfaced five real defects that testing alone had not caught, including an aggregate whose name promised the most recent value while returning the alphabetically last one.
+
+---
+
+## Continuous Integration
+
+Every push that touches a model, macro or project config triggers a GitHub
+Actions workflow that rebuilds the entire pipeline from source and runs all
+95 tests. A failure fails the build.
+
+### Isolation
+
+CI never writes to production. A `generate_schema_name` macro prefixes every
+schema with the target's dataset for any target other than `dev`, so a CI run
+builds into `ci_staging`, `ci_intermediate` and `ci_marts` while reading real
+source data from `raw`. A broken model cannot overwrite a good mart before the
+tests catch it.
+
+### Authentication
+
+The workflow authenticates to Google Cloud through Workload Identity
+Federation. GitHub issues a short-lived token asserting which repository the
+run belongs to, Google verifies it against a trust scoped to this repository
+alone, and returns a temporary credential. No service account key exists and
+nothing long-lived is stored in GitHub secrets.
+
+### What it caught
+
+The first run failed. `stg_crm__campaigns` referenced a `campaign_variant`
+column that does not exist in the source table, and had been sitting in the
+repo unnoticed because local runs had never rebuilt that model from scratch.
+Nineteen downstream models and tests were skipped as a result.
+
+That is the argument for CI in one example: a clean-machine rebuild surfaces
+what a developer's own environment quietly hides.
 
 ---
 
@@ -344,15 +353,18 @@ Tests run in under 60 seconds and replace manual data validation entirely.
 
 | Layer | Tool |
 |-------|------|
-| Source systems | HubSpot, ERPNext, GA4 |
-| Ingestion | Airbyte |
-| Cloud storage | Google Cloud Storage |
+| Source schemas modelled on | HubSpot (CRM), ERPNext (ERP), GA4 (web events) |
+| Data generation and ingestion | Python (Faker) |
 | Data warehouse | BigQuery (GCP) |
 | Transformation | dbt Core |
-| Testing | dbt_utils | 
+| Testing | dbt_utils |
 | Visualisation | Looker Studio |
+| Agent tool layer | MCP Toolbox |
+| Agent orchestration | LangChain |
+| Model hosting | Vertex AI (Gemini) |
+| Agent interface | Streamlit on Cloud Run |
+| CI | GitHub Actions with Workload Identity Federation |
 | Version control | Git, GitHub |
-| Data generation | Python (Faker) |
 
 ---
 
@@ -362,49 +374,39 @@ Tests run in under 60 seconds and replace manual data validation entirely.
 revenue_intelligence_platform/
 ├── models/
 │   ├── staging/
-│   │   ├── crm/
-│   │   │   ├── stg_crm__accounts.sql
-│   │   │   ├── stg_crm__contacts.sql
-│   │   │   ├── stg_crm__leads.sql
-│   │   │   ├── stg_crm__opportunities.sql
-│   │   │   ├── stg_crm__activities.sql
-│   │   │   ├── stg_crm__campaigns.sql
-│   │   │   └── stg_crm__support_tickets.sql
-│   │   ├── erp/
-│   │   │   ├── stg_erp__subscriptions.sql
-│   │   │   ├── stg_erp__invoices.sql
-│   │   │   ├── stg_erp__payments.sql
-│   │   │   ├── stg_erp__orders.sql
-│   │   │   └── stg_erp__products.sql
-│   │   └── web/
-│   │       ├── stg_web__web_events.sql
-│   │       └── stg_web__feature_usage.sql
+│   │   ├── sources.yml
+│   │   ├── schema.yml
+│   │   ├── crm/          # 7 staging models
+│   │   ├── erp/          # 5 staging models
+│   │   └── web/          # 2 staging models
 │   ├── intermediate/
-│   │   ├── int_accounts_with_subscriptions.sql
-│   │   ├── int_customer_health.sql
-│   │   ├── int_payment_health.sql
-│   │   ├── int_sales_activity.sql
-│   │   └── int_leads_with_campaigns.sql
+│   │   ├── schema.yml
+│   │   └── int_*.sql     # 5 intermediate models
 │   └── marts/
-│       ├── schema.yml
-│       ├── core/
-│       │   └── mart_customer_churn.sql
-│       ├── finance/
-│       │   └── mart_revenue.sql
-│       └── marketing/
-│           └── mart_sales_funnel.sql
+│       ├── schema.yml    # 159 documented columns
+│       ├── core/mart_customer_churn.sql
+│       ├── finance/mart_revenue.sql
+│       └── marketing/mart_sales_funnel.sql
+├── agent/
+│   ├── app.py                     # Streamlit UI
+│   ├── main.py                    # Agent definition, system prompt, terminal client
+│   ├── tools.shared.yaml          # Source config + curated fixed-SQL tools
+│   ├── tools.analyst-extra.yaml   # Discovery tools + open-ended query
+│   ├── Dockerfile                 # Streamlit service
+│   ├── Dockerfile.toolbox         # MCP Toolbox service
+│   └── requirements.txt
+├── .github/
+│   └── workflows/
+│       └── dbt_ci.yml         # Build and test on every model change
 ├── seeds/
+├── snapshots/
 ├── tests/
 ├── macros/
-├── screenshots/
-│   ├── customer_churn_dashboard.png
-│   ├── revenue_health_dashboard.png
-│   └── sales_funnel_dashboard.png
-├── generate_data.py
+├── analyses/
+├── images/
 ├── dbt_project.yml
 ├── packages.yml
 └── README.md
-
 ```
 
 ---
@@ -412,30 +414,20 @@ revenue_intelligence_platform/
 ## How to Run
 
 ### Prerequisites
-- Python 3.8 or above
-- dbt Core with the BigQuery adapter installed
-- Google Cloud project with BigQuery enabled
-- Service account with BigQuery Data Editor and Job User roles
->>>>>>> da0a48027f19ba0505b863aa4a8f770524eb0952
+
+- Python 3.9 or above
+- A Google Cloud project with BigQuery enabled
+- A service account with BigQuery Data Editor and Job User roles
+- dbt-bigquery installed: `pip install dbt-bigquery`
 
 ### Setup
 
 ```bash
-<<<<<<< HEAD
-# 1. Clone the repo
 git clone https://github.com/Promchi/revenue-intelligence-platform-on-gcp.git
-cd revenue-intelligence-platform-on-gcp
+cd revenue-intelligence-platform-on-gcp/revenue_intelligence_platform
 
-# 2. Install dbt packages (dbt_utils, etc.)
 dbt deps
-
-# 3. Configure your BigQuery connection in ~/.dbt/profiles.yml
-#    Profile name must match: revenue_intelligence_platform
-
-# 4. Test the connection
 dbt debug
-
-# 5. Build everything: staging → intermediate → marts
 dbt build
 ```
 
@@ -455,111 +447,35 @@ revenue_intelligence_platform:
       location: EU
 ```
 
-## Project structure
-
-```
-revenue_intelligence_platform/
-├── dbt_project.yml          # dbt project config + model materialisations
-├── packages.yml             # dbt_utils dependency
-├── models/
-│   ├── staging/
-│   │   ├── sources.yml      # raw source declarations
-│   │   ├── schema.yml       # staging tests + docs
-│   │   ├── crm/             # 7 staging models (accounts, leads, …)
-│   │   ├── erp/             # 5 staging models (subscriptions, invoices, …)
-│   │   └── web/             # 2 staging models (web_events, feature_usage)
-│   ├── intermediate/
-│   │   ├── schema.yml
-│   │   └── int_*.sql        # 5 intermediate models
-│   └── marts/
-│       ├── schema.yml
-│       ├── core/mart_customer_churn.sql
-│       ├── finance/mart_revenue.sql
-│       └── marketing/mart_sales_funnel.sql
-├── seeds/                   # static reference data
-├── snapshots/               # SCD2 history
-├── tests/                   # singular tests
-├── macros/                  # custom Jinja macros
-├── analyses/                # ad-hoc analytical SQL
-└── images/                  # dashboard screenshots used in this README
-```
-
-## Running selected models
-
-```bash
-# Run only staging models
-dbt run --select staging
-
-# Run only the marts and everything they depend on
-dbt run --select +marts
-
-# Run only finance-tagged models
-dbt run --select tag:finance
-
-# Run tests for the customer churn mart
-dbt test --select mart_customer_churn
-```
-
-## License
-
-This project is provided as-is for portfolio and educational purposes.
-=======
-# clone the repository
-git clone https://github.com/your-username/revenue-intelligence-platform.git
-cd revenue-intelligence-platform-on-gcp
-
-# install dbt BigQuery adapter
-pip install dbt-bigquery
-
-# install dbt packages
-dbt deps
-
-# verify the connection to BigQuery
-dbt debug
-```
-
-### Run the full pipeline
-
-```bash
-# run all models
-dbt run
-
-# run all tests
-dbt test
-
-# generate and serve documentation
-dbt docs generate
-dbt docs serve
-```
-
 ### Run by layer
 
 ```bash
-# staging only
 dbt run --select staging
-
-# intermediate only
 dbt run --select intermediate
-
-# marts only
-dbt run --select tag:marts
-
-# specific business domain
+dbt run --select marts
 dbt run --select tag:finance
+dbt test --select mart_customer_churn
+```
+
+### Run the agent locally
+
+```bash
+cd agent
+gcloud auth application-default login
+./toolbox --configs tools.shared.yaml,tools.analyst-extra.yaml --ui
+python main.py
 ```
 
 ---
 
 ## Future Enhancements
 
-The current pipeline is the analytics engineering foundation. Planned extensions include:
-
-- **BigQuery ML layer** — train a churn prediction model on the mart tables to produce statistically derived churn probabilities alongside the rule-based risk score
-- **AI agent layer** — build an autonomous agent that reasons over ML predictions and account signals to generate tailored retention recommendations per account using an LLM
-- **Incremental loading** — convert mart models to incremental materialisations for production-scale data volumes
-- **Orchestration** — schedule pipeline runs via dbt Cloud or GitHub Actions with failure alerting
+- **Push dashboard measures into the marts**: calculated fields currently defined in Looker Studio should move into the model layer so both consumers share one metric definition
+- **Continuous deployment**: extend the existing GitHub Actions setup to build and deploy the agent container on push, reusing the same federated identity
+- **BigQuery ML layer**: train a churn prediction model on the mart tables to produce statistically derived probabilities alongside the rule-based risk score
+- **Persistent agent memory**: replace the in-memory checkpointer with a Postgres-backed one so conversations survive restarts
+- **Incremental loading**: convert mart models to incremental materialisations for production-scale data volumes
 
 ---
 
 *Built by Promise | [LinkedIn](https://www.linkedin.com/in/promise-ezeike) | [GitHub](https://github.com/promchi)*
->>>>>>> da0a48027f19ba0505b863aa4a8f770524eb0952
