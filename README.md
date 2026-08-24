@@ -33,7 +33,7 @@ The conversational agent runs on Cloud Run behind authentication. Screenshots be
 - [Pipeline Layers](#pipeline-layers)
 - [dbt Documentation and Lineage](#dbt-documentation-and-lineage)
 - [Data Quality and Testing](#data-quality-and-testing)
-- [Continuous Integration](#continuous-integration)
+- [CI/CD](#cicd)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [How to Run](#how-to-run)
@@ -315,7 +315,12 @@ Separately, documenting all 159 mart columns surfaced five real defects that tes
 
 ---
 
-## Continuous Integration
+## CI/CD
+
+Two GitHub Actions workflows, both authenticating through the same Workload
+Identity Federation pool. Neither stores a credential.
+
+### Continuous integration
 
 Every push that touches a model, macro or project config triggers a GitHub
 Actions workflow that rebuilds the entire pipeline from source and runs all
@@ -347,6 +352,30 @@ Nineteen downstream models and tests were skipped as a result.
 That is the argument for CI in one example: a clean-machine rebuild surfaces
 what a developer's own environment quietly hides.
 
+### Continuous deployment
+
+A push that touches `agent/` builds the Streamlit container and deploys it to
+Cloud Run. Images are tagged with the commit SHA, so every running revision
+traces back to the exact code that produced it and a rollback is a redeploy of
+a known tag rather than a rebuild.
+
+The two workflows trigger on different paths and never both fire on one
+change: a model edit runs the tests, an agent edit runs the deployment.
+
+### Least privilege
+
+Five service accounts, each holding only what its job requires:
+
+| Account | Purpose | Access |
+|---------|---------|--------|
+| `rip-agent` | Runs MCP Toolbox | BigQuery Data Viewer on `marts`, Job User |
+| `rip-agent-app` | Runs the Streamlit agent | Vertex AI, invoker on the Toolbox service |
+| `github-ci` | Runs dbt in CI | BigQuery Job User and Data Editor |
+| `github-deployer` | Builds and deploys | Cloud Build, Artifact Registry, Cloud Run |
+
+No account holds another's permissions, and none of them has a downloadable
+key.
+
 ---
 
 ## Tech Stack
@@ -363,7 +392,7 @@ what a developer's own environment quietly hides.
 | Agent orchestration | LangChain |
 | Model hosting | Vertex AI (Gemini) |
 | Agent interface | Streamlit on Cloud Run |
-| CI | GitHub Actions with Workload Identity Federation |
+| CI/CD | GitHub Actions with Workload Identity Federation |
 | Version control | Git, GitHub |
 
 ---
@@ -397,7 +426,8 @@ revenue_intelligence_platform/
 │   └── requirements.txt
 ├── .github/
 │   └── workflows/
-│       └── dbt_ci.yml         # Build and test on every model change
+│       ├── dbt_ci.yml         # Build and test on every model change
+│       └── deploy_agent.yml   # Build and deploy on every agent change
 ├── seeds/
 ├── snapshots/
 ├── tests/
@@ -471,7 +501,6 @@ python main.py
 ## Future Enhancements
 
 - **Push dashboard measures into the marts**: calculated fields currently defined in Looker Studio should move into the model layer so both consumers share one metric definition
-- **Continuous deployment**: extend the existing GitHub Actions setup to build and deploy the agent container on push, reusing the same federated identity
 - **BigQuery ML layer**: train a churn prediction model on the mart tables to produce statistically derived probabilities alongside the rule-based risk score
 - **Persistent agent memory**: replace the in-memory checkpointer with a Postgres-backed one so conversations survive restarts
 - **Incremental loading**: convert mart models to incremental materialisations for production-scale data volumes
