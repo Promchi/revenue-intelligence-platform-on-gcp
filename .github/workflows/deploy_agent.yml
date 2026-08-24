@@ -1,0 +1,64 @@
+name: Deploy agent
+
+# Builds the Streamlit agent image and deploys it to Cloud Run whenever the
+# agent code changes. Authenticates through the same Workload Identity
+# Federation pool as the CI workflow, so no service account key is stored.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agent/**'
+      - '.github/workflows/deploy_agent.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # required for workload identity federation
+
+env:
+  PROJECT_ID: project-6781bf86-eb56-440c-84b
+  REGION: europe-west2
+  SERVICE: rip-agent-app
+  REPOSITORY: rip-agent
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/560455219227/locations/global/workloadIdentityPools/github/providers/github-provider'
+          service_account: 'github-deployer@project-6781bf86-eb56-440c-84b.iam.gserviceaccount.com'
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      # Tag every image with the commit SHA so a deployment can always be
+      # traced back to the exact code that produced it, and so a rollback is
+      # a redeploy of a known tag rather than a rebuild.
+      - name: Build the image
+        working-directory: agent
+        run: |
+          gcloud builds submit . \
+            --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/app:${{ github.sha }} \
+            --region=${{ env.REGION }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE }} \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/app:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --quiet
+
+      - name: Show the service URL
+        run: |
+          gcloud run services describe ${{ env.SERVICE }} \
+            --region ${{ env.REGION }} \
+            --format="value(status.url)"
